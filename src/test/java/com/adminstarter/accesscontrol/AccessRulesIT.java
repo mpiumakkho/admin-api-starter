@@ -3,6 +3,9 @@ package com.adminstarter.accesscontrol;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.adminstarter.support.ApiIntegrationTest;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -216,6 +219,46 @@ class AccessRulesIT extends ApiIntegrationTest {
         assertThat(updated.get("changes").get(0).get("field").asString()).isEqualTo("department");
         assertThat(updated.get("changes").get(0).get("from").asString()).isEqualTo("Design");
         assertThat(updated.get("changes").get(0).get("to").asString()).isEqualTo("Sales");
+    }
+
+    @Test
+    void the_activity_log_can_be_read_for_a_time_range() {
+        var admin = admin();
+        var user = body(send(HttpMethod.POST, "/api/users", admin, draft(uniqueEmail(), roleId(admin, "Viewer"), "active")));
+        var entry = activity(admin, Map.of()).valueStream()
+                .filter(candidate -> candidate.has("targetId") && candidate.get("targetId").asString().equals(user.get("id").asString()))
+                .findFirst().orElseThrow();
+        var id = entry.get("id").asString();
+        var at = Instant.parse(entry.get("at").asString());
+
+        // From is inclusive, to is not; either may be left out
+        assertThat(ids(activity(admin, Map.of("from", at.toString())))).contains(id);
+        assertThat(ids(activity(admin, Map.of("from", at.plusMillis(1).toString())))).doesNotContain(id);
+        assertThat(ids(activity(admin, Map.of("to", at.toString())))).doesNotContain(id);
+        assertThat(ids(activity(admin, Map.of("to", at.plusMillis(1).toString())))).contains(id);
+        var range = activity(admin, Map.of("from", at.minusSeconds(60).toString(), "to", at.plusMillis(1).toString()));
+        var times = range.valueStream().map(candidate -> Instant.parse(candidate.get("at").asString())).toList();
+        assertThat(times).isNotEmpty().allMatch(time -> !time.isBefore(at.minusSeconds(60)) && time.isBefore(at.plusMillis(1)));
+        assertThat(times).isSortedAccordingTo(Comparator.reverseOrder());
+
+        // Any ISO 8601 offset; something else is invalid_request
+        assertThat(ids(activity(admin, Map.of("from", at.atOffset(ZoneOffset.ofHours(7)).toString())))).contains(id);
+        assertRefused(mvc.get().uri("/api/activity").param("from", "yesterday").header("Authorization", "Bearer " + admin.token())
+                .exchange(), HttpStatus.BAD_REQUEST, "invalid_request");
+        // Still nothing without activity.view
+        assertThat(activity(newUser("Viewer", "viewer-pass-1"), Map.of("from", at.toString())).isEmpty()).isTrue();
+    }
+
+    private JsonNode activity(Browser as, Map<String, String> range) {
+        var request = mvc.get().uri("/api/activity").header("Authorization", "Bearer " + as.token());
+        range.forEach(request::param);
+        var result = request.exchange();
+        assertThat(result).hasStatusOk();
+        return body(result);
+    }
+
+    private static List<String> ids(JsonNode entries) {
+        return entries.valueStream().map(entry -> entry.get("id").asString()).toList();
     }
 
     private String roleOf(Browser as, String userId) {

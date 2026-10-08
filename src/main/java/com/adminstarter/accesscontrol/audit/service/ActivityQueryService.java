@@ -6,7 +6,9 @@ import com.adminstarter.accesscontrol.audit.entity.AuditLog;
 import com.adminstarter.accesscontrol.audit.repository.AuditLogRepository;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.common.dto.FieldChange;
+import java.time.Instant;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,12 +33,15 @@ public class ActivityQueryService {
         this.listLimit = properties.audit().listLimit();
     }
 
-    /** The log, newest first, or nothing without activity.view; the app filters and pages it itself */
-    public List<ActivityResponse> list(Actor actor) {
+    /**
+     * The log, newest first, at or after {@code from} and before {@code to} when they are given, at most listLimit
+     * entries; nothing without activity.view. The app filters and pages it further itself.
+     */
+    public List<ActivityResponse> list(Actor actor, @Nullable Instant from, @Nullable Instant to) {
         if (!actor.has(ACTIVITY_VIEW)) {
             return List.of();
         }
-        return logs.findAllByOrderByOccurredAtDescIdDesc(Limit.of(listLimit)).stream().map(this::toResponse).toList();
+        return logs.findBetween(from, to, Limit.of(listLimit)).stream().map(this::toResponse).toList();
     }
 
     private ActivityResponse toResponse(AuditLog entry) {

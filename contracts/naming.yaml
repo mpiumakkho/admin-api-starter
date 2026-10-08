@@ -1,5 +1,6 @@
 # contracts/naming.yaml — names, checked by NamingRuleTest. Differences from the template: permission codes use
-# a dot (P-002), services may end in Initializer, dto may hold FieldChange, and the REST paths follow API.md (P-001).
+# a dot (P-002), services may end in Initializer, dto may hold FieldChange, an spi may end in Provider (P-018), and the
+# REST paths follow API.md (P-001).
 schema_version: 1
 
 backend:
@@ -12,7 +13,7 @@ backend:
     dto: [Request, Response, Summary, Params, Change]
     event: []                        # past-tense noun phrase, no "Event"
     policy: [Policy]
-    spi: [Catalog, Template, Definition, Customizer]
+    spi: [Catalog, Template, Definition, Customizer, Provider]
   entity_forbidden_prefix: [Ms, Tb, Tbl, T_, Ent]
   event_forbidden_suffix: [Event, Evt]
   exception_suffix: Exception

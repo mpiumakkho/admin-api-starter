@@ -68,10 +68,11 @@ public record AccessControlProperties(
             @DefaultValue("5") int emailLinks) {}
 
     /**
-     * @param retentionDays entries older than this are deleted every night
+     * How long activity is kept is a setting (activityRetentionDays, P-018), not configuration.
+     *
      * @param listLimit the most entries GET /activity answers with, newest first
      */
-    public record Audit(@DefaultValue("730") int retentionDays, @DefaultValue("10000") int listLimit) {}
+    public record Audit(@DefaultValue("10000") int listLimit) {}
 
     /**
      * @param baseUrl where the dashboard is, for the links in emails

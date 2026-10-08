@@ -2,6 +2,7 @@ package com.adminstarter.accesscontrol.settings.service;
 
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.NOT_FOUND;
 
+import com.adminstarter.accesscontrol.audit.spi.ActivityRetentionProvider;
 import com.adminstarter.accesscontrol.authorization.service.RoleService;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.common.dto.FieldChange;
@@ -26,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional
-public class SettingsServiceImpl implements SettingsService {
+public class SettingsServiceImpl implements SettingsService, ActivityRetentionProvider {
 
     /** requiresTwoFactor; evicted, after commit, whenever twoFactorRoleIds may have changed */
     static final String TWO_FACTOR_ROLES_CACHE = "two-factor-roles";
@@ -62,6 +63,13 @@ public class SettingsServiceImpl implements SettingsService {
     public PasswordPolicyResponse passwordPolicy() {
         var current = load();
         return new PasswordPolicyResponse(current.getPasswordMinLength(), current.getPasswordHistory());
+    }
+
+    /** For the nightly AuditRetentionJob (P-018) */
+    @Override
+    @Transactional(readOnly = true)
+    public int activityRetentionDays() {
+        return load().getActivityRetentionDays();
     }
 
     @CacheEvict(cacheNames = TWO_FACTOR_ROLES_CACHE, allEntries = true)

@@ -34,7 +34,7 @@ class NamingRuleTest {
     static final ArchRule policies = topLevel("..policy..").should().haveSimpleNameEndingWith("Policy");
 
     @ArchTest
-    static final ArchRule spis = topLevel("..spi..").should(endWithAnyOf("Catalog", "Template", "Definition", "Customizer"));
+    static final ArchRule spis = topLevel("..spi..").should(endWithAnyOf("Catalog", "Template", "Definition", "Customizer", "Provider"));
 
     @ArchTest
     static final ArchRule events_are_past_tense_without_event_suffix = topLevel("..event..")
