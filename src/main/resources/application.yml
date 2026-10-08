@@ -1,0 +1,60 @@
+# Development values. application-prod.yml lists only what production changes.
+spring:
+  application:
+    name: admin-api-starter
+  threads:
+    virtual:
+      enabled: true
+  # docker/docker-compose.yml (port 5433, so it does not clash with a PostgreSQL already on 5432)
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/admin}
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:admin}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: access_control
+  flyway:
+    schemas: access_control,app
+    default-schema: access_control
+    locations: classpath:db/migration/access_control,classpath:db/migration/app
+  mail:
+    # Mailpit from docker/docker-compose.yml; read the mail at http://localhost:8025
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+
+server:
+  port: 8080
+  error:
+    include-message: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+access-control:
+  issuer: admin-api-starter
+  product-name: Admin
+  # No keys: one is made at startup (tokens stop working on restart). See tools/gen-keys.sh.
+  cookie:
+    name: ac_rt
+    secure: false
+  cors:
+    allowed-origins:
+      - http://localhost:4200
+  mail:
+    from: no-reply@localhost
+    base-url: http://localhost:4200
+  bootstrap:
+    admin-email: ${ACCESS_CONTROL_BOOTSTRAP_ADMIN_EMAIL:admin@example.com}
+    admin-password: ${ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD:}
+    default-role: VIEWER
+
+logging:
+  pattern:
+    correlation: "[%X{request_id:-}] "
