@@ -46,7 +46,7 @@ admin-api-starter/
 | `SecurityConfig.java` | `SecurityFilterChain`: `/api/auth/**` เปิด, `/api/**` ต้องมี access token, ที่เหลือปิด; CORS; `PasswordEncoder` (Argon2id); ใส่ `RequestContextFilter`, `RateLimitFilter` และ `TwoFactorSetupFilter` |
 | `JwtConfig.java` | `JwtEncoder` / `JwtDecoder` (Nimbus) จาก `JwtKeyProvider` |
 | `CacheConfig.java` | Caffeine cache แบบ transaction-aware: `accounts`, `role-permissions`, `two-factor-roles` |
-| `AsyncConfig.java` | `@EnableAsync` (อีเมล), `@EnableScheduling` (งานกลางคืน, ping SSE) |
+| `AsyncConfig.java` | `@EnableAsync` (อีเมล), `@EnableScheduling` (งานกลางคืน, ping SSE); bean `ActivityRetentionProvider` จาก `SettingsService` (P-018) |
 | `ClockConfig.java` | `Clock` สำหรับทุก timestamp |
 | `JacksonConfig.java` | request body แบบเข้มงวด (กฎข้อ 5) |
 | `EncryptionConfig.java` | `TextEncryptor` (AES-256-GCM) สำหรับ secret ที่เก็บใน DB ถ้าไม่มี key แอปจะไม่ start (P-014) |
@@ -81,7 +81,7 @@ admin-api-starter/
 | `identity/` | controller, service, repository, entity, dto, event, policy | `UserService`, `CredentialService`, `dto/*`, `event/*` | user, รหัสผ่าน (Argon2id + lockout, กฎจาก settings และประวัติใน `previous_passwords`: P-017), 2FA (TOTP), กฎป้องกันตัวเอง; `UserController` (`/api/users`, รวม `POST /role`), `MeController` (`/api/me`) |
 | `authentication/` | controller, service, repository, entity, dto, event | `event/*` | login, refresh rotation + reuse detection, session/อุปกรณ์, ลิงก์ในอีเมล; `AuthController` (`/api/auth`, รวม `GET /password-policy`), `SessionController` |
 | `authorization/` | controller, service, repository, entity, dto, event, policy, spi | `RoleService`, `CorePermissions`, `CoreRoles`, `spi/*`, `dto/*`, `event/*` | role, permission catalog (sync ตอน start), `GrantPolicy`; `RoleController` (`/api/roles`) |
-| `settings/` | controller, service, repository, entity, dto, event | `SettingsService`, `dto/*`, `event/*` | `AdminSettings` รวมกฎของบัญชี (`twoFactorRoleIds`, `passwordMinLength`, `passwordHistory`, `activityRetentionDays`); `SettingsController` (`/api/settings`); `RoleEventListener` เอา role ที่ถูกลบออกจาก `twoFactorRoleIds`; `SettingsServiceImpl` implement `audit.spi.ActivityRetentionProvider` (P-018) |
+| `settings/` | controller, service, repository, entity, dto, event | `SettingsService`, `dto/*`, `event/*` | `AdminSettings` รวมกฎของบัญชี (`twoFactorRoleIds`, `passwordMinLength`, `passwordHistory`, `activityRetentionDays`); `SettingsController` (`/api/settings`); `RoleEventListener` เอา role ที่ถูกลบออกจาก `twoFactorRoleIds` |
 | `audit/` | controller, service, repository, entity, dto, event, spi | `event/ActivityRecorded`, `spi/*` | ฟัง event ของทุก module แล้วเขียน `audit_logs` ใน transaction เดียวกัน; `ActivityController` (`/api/activity?from=&to=`); `AuditRetentionJob` ลบ activity ที่เก่ากว่าที่ `ActivityRetentionProvider` บอกทุกคืน |
 | `notification/` | service | `NotificationService` | อีเมลเชิญและรีเซ็ตรหัสผ่าน (Thymeleaf, `@Async`, หลัง commit) |
 | `liveupdate/` | controller, service | — | SSE `/api/events` ส่ง `NOTIFY admin_changes` ใน transaction ของการเปลี่ยนแปลง แล้ว `ChangeNotificationListener` ของทุก instance ได้ยินและส่งต่อให้ stream โดยรวมการเปลี่ยนแปลงที่เกิดติด ๆ กันเป็นข้อความเดียว (P-015) |
@@ -90,7 +90,7 @@ admin-api-starter/
 
 Entity ทุกตัวเป็น JPA entity แบบ JavaBean: field เป็น private, มี getter (`getEmail()`, `isSystem()`), constructor แบบ protected ที่ไม่มี argument ไว้ให้ Hibernate และไม่มี setter สาธารณะ การเปลี่ยนสถานะทำผ่าน method ที่มีความหมาย เช่น `changeStatus()`, `update()`, `signedIn()` (P-013)
 
-ทิศทางการพึ่งพา (ไม่มีวงวน: R8): `authorization` ← `settings` ← `identity` ← `authentication` ← `notification`, ส่วน `audit` ฟัง event ของทุกตัว และ `liveupdate` ฟังแค่ `audit` ส่วน `settings` implement `audit/spi` ได้โดยไม่เกิดวงวน เพราะ R8 นับ package `spi` ของแต่ละ module เป็น slice แยก (P-018)
+ทิศทางการพึ่งพา (ไม่มีวงวน: R8): `authorization` ← `settings` ← `identity` ← `authentication` ← `notification`, ส่วน `audit` ฟัง event ของทุกตัว และ `liveupdate` ฟังแค่ `audit` ค่าที่ audit ต้องถาม (`audit/spi`) ต่อเข้ากับ module อื่นใน `config` (P-018)
 
 ## `src/main/java/com/adminstarter/app/` — ของโปรเจกต์
 
