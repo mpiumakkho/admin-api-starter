@@ -4,6 +4,7 @@ import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.identity.dto.CreateUserRequest;
 import com.adminstarter.accesscontrol.identity.dto.DeleteUsersRequest;
 import com.adminstarter.accesscontrol.identity.dto.ImportUsersRequest;
+import com.adminstarter.accesscontrol.identity.dto.SetUserRoleRequest;
 import com.adminstarter.accesscontrol.identity.dto.SetUserStatusRequest;
 import com.adminstarter.accesscontrol.identity.dto.UpdateUserRequest;
 import com.adminstarter.accesscontrol.identity.dto.UserResponse;
@@ -67,6 +68,12 @@ public class UserController {
     @PreAuthorize("hasAuthority('users.edit')")
     public List<UserResponse> setStatus(@AuthenticationPrincipal Actor actor, @Valid @RequestBody SetUserStatusRequest request) {
         return users.setStatus(actor, request);
+    }
+
+    @PostMapping("/role")
+    @PreAuthorize("hasAuthority('users.edit')")
+    public List<UserResponse> setRole(@AuthenticationPrincipal Actor actor, @Valid @RequestBody SetUserRoleRequest request) {
+        return users.setRole(actor, request);
     }
 
     @PostMapping("/delete")

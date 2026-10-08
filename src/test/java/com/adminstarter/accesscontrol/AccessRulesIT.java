@@ -98,6 +98,58 @@ class AccessRulesIT extends ApiIntegrationTest {
     }
 
     @Test
+    void several_people_get_the_same_role_at_once_and_each_change_is_logged() {
+        var admin = admin();
+        var viewer = roleId(admin, "Viewer");
+        var support = roleId(admin, "Support");
+        var first = body(send(HttpMethod.POST, "/api/users", admin, draft(uniqueEmail(), viewer, "active"))).get("id").asString();
+        var second = body(send(HttpMethod.POST, "/api/users", admin, draft(uniqueEmail(), support, "active"))).get("id").asString();
+
+        // Only the people whose role changed come back
+        var changed = body(send(HttpMethod.POST, "/api/users/role", admin, Map.of("ids", List.of(first, second, first), "roleId", support)));
+        assertThat(changed).hasSize(1);
+        assertThat(changed.get(0).get("id").asString()).isEqualTo(first);
+        assertThat(changed.get(0).get("roleId").asString()).isEqualTo(support.toString());
+
+        var entries = body(get("/api/activity", admin)).valueStream()
+                .filter(entry -> entry.get("action").asString().equals("user.updated") && entry.has("targetId"))
+                .toList();
+        var logged = entries.stream().filter(entry -> entry.get("targetId").asString().equals(first)).toList();
+        assertThat(logged).hasSize(1);
+        assertThat(logged.get(0).get("actorId").asString()).isEqualTo(admin.userId().toString());
+        var change = logged.get(0).get("changes").get(0);
+        assertThat(change.get("field").asString()).isEqualTo("roleId");
+        assertThat(change.get("from").asString()).isEqualTo(viewer.toString());
+        assertThat(change.get("to").asString()).isEqualTo(support.toString());
+        assertThat(entries).noneMatch(entry -> entry.get("targetId").asString().equals(second));
+    }
+
+    @Test
+    void a_role_change_for_several_people_follows_the_rules() {
+        var admin = admin();
+        var manager = newUser("Manager", "manager-pass-1");
+        var viewer = roleId(admin, "Viewer");
+        var target = body(send(HttpMethod.POST, "/api/users", admin, draft(uniqueEmail(), viewer, "active"))).get("id").asString();
+        var support = roleId(admin, "Support").toString();
+
+        assertRefused(send(HttpMethod.POST, "/api/users/role", manager,
+                Map.of("ids", List.of(target, manager.userId().toString()), "roleId", support)), HttpStatus.FORBIDDEN, "self_change");
+        assertRefused(send(HttpMethod.POST, "/api/users/role", manager,
+                Map.of("ids", List.of(target), "roleId", roleId(admin, "Administrator").toString())), HttpStatus.FORBIDDEN, "forbidden");
+        assertRefused(send(HttpMethod.POST, "/api/users/role", manager,
+                Map.of("ids", List.of(target, admin.userId().toString()), "roleId", support)), HttpStatus.FORBIDDEN, "forbidden");
+        assertRefused(send(HttpMethod.POST, "/api/users/role", manager,
+                Map.of("ids", List.of(target), "roleId", UUID.randomUUID().toString())), HttpStatus.NOT_FOUND, "not_found");
+        assertRefused(send(HttpMethod.POST, "/api/users/role", newUser("Viewer", "viewer-pass-1"),
+                Map.of("ids", List.of(target), "roleId", support)), HttpStatus.FORBIDDEN, "forbidden");
+
+        // None of that changed anything; a role the manager could give out does
+        assertThat(roleOf(admin, target)).isEqualTo(viewer.toString());
+        assertThat(send(HttpMethod.POST, "/api/users/role", manager, Map.of("ids", List.of(target), "roleId", support))).hasStatusOk();
+        assertThat(roleOf(admin, target)).isEqualTo(support);
+    }
+
+    @Test
     void an_import_adds_every_row_or_none() {
         var admin = admin();
         var viewer = roleId(admin, "Viewer");
@@ -164,6 +216,13 @@ class AccessRulesIT extends ApiIntegrationTest {
         assertThat(updated.get("changes").get(0).get("field").asString()).isEqualTo("department");
         assertThat(updated.get("changes").get(0).get("from").asString()).isEqualTo("Design");
         assertThat(updated.get("changes").get(0).get("to").asString()).isEqualTo("Sales");
+    }
+
+    private String roleOf(Browser as, String userId) {
+        return body(get("/api/users", as)).valueStream()
+                .filter(user -> user.get("id").asString().equals(userId))
+                .map(user -> user.get("roleId").asString())
+                .findFirst().orElseThrow();
     }
 
     private static List<String> emails(JsonNode users) {
