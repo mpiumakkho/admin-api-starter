@@ -6,9 +6,12 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 
+import com.adminstarter.accesscontrol.audit.service.AuditRetentionJob;
 import com.adminstarter.accesscontrol.identity.service.TotpService;
 import com.adminstarter.support.ApiIntegrationTest;
 import java.net.URI;
+import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,17 +23,24 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The account rules in the settings (API.md, "Settings", "Roles that must use two-step sign-in", "Password rules").
- * The database is shared by every test class, so each test puts back the settings it changes.
+ * The account rules in the settings (API.md, "Settings", "Roles that must use two-step sign-in", "Password rules",
+ * "Activity"). The database is shared by every test class, so each test puts back the settings it changes.
  */
 class AccountRulesIT extends ApiIntegrationTest {
 
     @Autowired
     TotpService totp;
+
+    @Autowired
+    AuditRetentionJob retentionJob;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     @Test
     void the_account_rules_start_at_their_defaults_and_stay_within_their_ranges() {
@@ -216,6 +226,39 @@ class AccountRulesIT extends ApiIntegrationTest {
         verify(notifications, atLeastOnce()).sendPasswordReset(eq(email), any(), link.capture(), any(Instant.class));
         var query = URI.create(link.getValue()).getQuery();
         return query.substring(query.indexOf("token=") + "token=".length());
+    }
+
+    // How long activity is kept -----------------------------------------------------------------------------------
+
+    @Test
+    void the_nightly_job_deletes_activity_older_than_the_settings_keep_it() {
+        var old = entryAt(Instant.now().minus(Duration.ofDays(40)));
+        var recent = entryAt(Instant.now().minus(Duration.ofDays(20)));
+        try {
+            retentionJob.run();
+            assertThat(exists(old)).as("730 days by default").isTrue();
+            withSettings(admin(), Map.of("activityRetentionDays", 30), () -> {
+                retentionJob.run();
+                assertThat(exists(old)).isFalse();
+                assertThat(exists(recent)).isTrue();
+            });
+        } finally {
+            jdbc.update("delete from access_control.audit_logs where id in (?, ?)", old, recent);
+        }
+    }
+
+    /** An activity entry written at {@code at}, as if long ago */
+    private UUID entryAt(Instant at) {
+        var id = UUID.randomUUID();
+        jdbc.update("""
+                insert into access_control.audit_logs (id, occurred_at, actor_id, action, target_label, ip, browser, os, request_id)
+                values (?, ?, ?, 'test.retention', 'Retention', '', '', '', '')""",
+                id, Timestamp.from(at), UUID.randomUUID());
+        return id;
+    }
+
+    private boolean exists(UUID entryId) {
+        return jdbc.queryForObject("select count(*) from access_control.audit_logs where id = ?", Integer.class, entryId) == 1;
     }
 
     /** A new role granting these permissions */
