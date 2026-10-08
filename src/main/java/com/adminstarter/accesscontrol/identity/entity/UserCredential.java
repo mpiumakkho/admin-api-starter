@@ -1,5 +1,6 @@
 package com.adminstarter.accesscontrol.identity.entity;
 
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -26,9 +27,11 @@ public class UserCredential {
     private int failedAttempts;
     /** Locked after too many wrong attempts in a row (not the same as suspended, which an administrator decides) */
     private @Nullable Instant lockedUntil;
-    /** Base32 TOTP secret; set while two-step sign-in is on */
+    /** Base32 TOTP secret; set while two-step sign-in is on. Encrypted in the column. */
+    @Convert(converter = EncryptedSecretConverter.class)
     private @Nullable String twoFactorSecret;
-    /** A new secret waiting for its first code */
+    /** A new secret waiting for its first code. Encrypted in the column. */
+    @Convert(converter = EncryptedSecretConverter.class)
     private @Nullable String pendingTwoFactorSecret;
 
     protected UserCredential() {}

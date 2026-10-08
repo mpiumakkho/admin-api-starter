@@ -49,6 +49,7 @@ admin-api-starter/
 | `AsyncConfig.java` | `@EnableAsync` (อีเมล), `@EnableScheduling` (งานกลางคืน, ping SSE) |
 | `ClockConfig.java` | `Clock` สำหรับทุก timestamp |
 | `JacksonConfig.java` | request body แบบเข้มงวด (กฎข้อ 5) |
+| `EncryptionConfig.java` | `TextEncryptor` (AES-256-GCM) สำหรับ secret ที่เก็บใน DB ถ้าไม่มี key แอปจะไม่ start (P-014) |
 
 ### `security/` — adapter ของ Spring Security
 
@@ -83,6 +84,8 @@ admin-api-starter/
 | `audit/` | controller, service, repository, entity, dto, event | `event/ActivityRecorded` | ฟัง event ของทุก module แล้วเขียน `audit_logs` ใน transaction เดียวกัน; `ActivityController` (`/api/activity`) |
 | `notification/` | service | `NotificationService` | อีเมลเชิญและรีเซ็ตรหัสผ่าน (Thymeleaf, `@Async`, หลัง commit) |
 | `liveupdate/` | controller, service | — | SSE `/api/events`, รวมการเปลี่ยนแปลงที่เกิดติด ๆ กันเป็นข้อความเดียว |
+
+`identity/entity/EncryptedSecretConverter` เข้ารหัสคอลัมน์ TOTP secret ของ `UserCredential` ตอนบันทึก และถอดรหัสตอนอ่าน (P-014)
 
 Entity ทุกตัวเป็น JPA entity แบบ JavaBean: field เป็น private, มี getter (`getEmail()`, `isSystem()`), constructor แบบ protected ที่ไม่มี argument ไว้ให้ Hibernate และไม่มี setter สาธารณะ การเปลี่ยนสถานะทำผ่าน method ที่มีความหมาย เช่น `changeStatus()`, `update()`, `signedIn()` (P-013)
 

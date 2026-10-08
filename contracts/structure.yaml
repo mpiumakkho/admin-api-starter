@@ -38,7 +38,8 @@ backend:
 
   foundation_non_module_packages:
     config:
-      files: [SecurityConfig.java, JwtConfig.java, CacheConfig.java, AsyncConfig.java, ClockConfig.java, JacksonConfig.java]
+      files: [SecurityConfig.java, JwtConfig.java, CacheConfig.java, AsyncConfig.java, ClockConfig.java, JacksonConfig.java,
+              EncryptionConfig.java]
     security:
       files: [PermissionAuthenticationConverter.java, ActorAuthentication.java, SessionChecker.java,
               RequestContextFilter.java, RateLimitFilter.java, SecurityProblemHandler.java]

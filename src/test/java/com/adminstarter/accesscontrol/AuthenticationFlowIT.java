@@ -11,12 +11,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /** Signing in, the refresh cookie, sessions and two-step sign-in, as API.md describes them */
 class AuthenticationFlowIT extends ApiIntegrationTest {
 
     @Autowired
     TotpService totp;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     @Test
     void wrong_or_unknown_credentials_are_refused_alike() {
@@ -144,6 +148,10 @@ class AuthenticationFlowIT extends ApiIntegrationTest {
                 HttpStatus.UNAUTHORIZED, "invalid_code");
         assertThat(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", totp.codeAt(secret, Instant.now()))))
                 .hasStatusOk().bodyJson().extractingPath("$.twoFactor").isEqualTo(true);
+        // A copy of the database does not give the secret away (P-014)
+        var stored = jdbc.queryForObject("select two_factor_secret from access_control.user_credentials where user_id = ?",
+                String.class, user.userId());
+        assertThat(stored).startsWith("enc:v1:").doesNotContain(secret);
 
         assertRefused(login(email, "first-pass-123", null), HttpStatus.UNAUTHORIZED, "two_factor_required");
         assertRefused(login(email, "first-pass-123", "000000"), HttpStatus.UNAUTHORIZED, "invalid_code");

@@ -69,7 +69,7 @@
 ## P-008 Two-step sign-in (TOTP) อยู่ใน identity
 
 - Decision: secret อยู่ใน `user_credentials` (ตามที่ template เตรียม `mfa_secret` ไว้) algorithm คือ RFC 6238 (SHA-1, 30 วินาที, 6 หลัก, ยอมคลาด ±1 step) ตรงกับ totp.ts รหัสที่ผิดนับรวมกับรหัสผ่านที่ผิดใน lockout
-- Consequences: secret เก็บแบบไม่เข้ารหัส ถ้าต้องการเข้ารหัส at rest ให้เพิ่ม ADR
+- Consequences: secret เก็บแบบไม่เข้ารหัส ถ้าต้องการเข้ารหัส at rest ให้เพิ่ม ADR (ทำแล้วใน P-014)
 
 ## P-009 Frontend คือ admin-ng-starter
 
@@ -101,4 +101,10 @@
 - Context: tree ของ template วาง `Application.java` ไว้ใน `com.<org>.app` จึงต้องเพิ่ม `scanBasePackages`, `@EntityScan` และ `@EnableJpaRepositories` ให้ Spring เห็น `accesscontrol` ด้วย ส่วน entity ใช้ accessor แบบ record (`email()`) ซึ่งต่างจาก JavaBean ที่คนใช้ Spring/JPA คุ้น
 - Decision: `Application.java` อยู่ที่ root package `com.adminstarter` ใช้แค่ `@SpringBootApplication` กับ `@ConfigurationPropertiesScan` และ `@SpringBootTest` หา configuration เองได้ entity ใช้ getter แบบ JavaBean (`getEmail()`, `isSystem()`) ส่วน DTO, event และ value object ยังเป็น record เหมือนเดิม
 - Consequences: `contracts/structure.yaml` ไม่บังคับ `app/Application.java` แต่บังคับ `com/adminstarter/Application.java` แทน และ `app/` เหลือไว้สำหรับ business module กับ `app/config` เท่านั้น
+
+## P-014 เข้ารหัส TOTP secret ใน DB (ต่อจาก P-008)
+
+- Context: P-008 เก็บ secret ของ two-step sign-in ไว้แบบไม่เข้ารหัส ใครที่ได้สำเนา DB หรือ backup ไปจึงสร้างรหัส 6 หลักแทนเจ้าของได้
+- Decision: คอลัมน์ `two_factor_secret` และ `pending_two_factor_secret` ผ่าน `EncryptedSecretConverter` (JPA `AttributeConverter`) ซึ่งเข้ารหัสด้วย `TextEncryptor` ของ Spring Security (`Encryptors.delux`: AES-256-GCM, IV สุ่มใหม่ทุกครั้ง, key derive จาก `access-control.encryption.password` + `salt`) ค่าในคอลัมน์ขึ้นต้นด้วย `enc:v1:` เพื่อให้เปลี่ยนวิธีเข้ารหัสได้ภายหลัง ส่วนค่าที่ไม่มี prefix (เขียนไว้ก่อนมีการเข้ารหัส) อ่านได้ตามเดิมและจะถูกเข้ารหัสเมื่อบันทึกครั้งถัดไป ถ้าไม่ได้ตั้ง key แอปจะไม่ start (`EncryptionConfig`)
+- Consequences: key ต้องเก็บไว้ตลอด ถ้าเปลี่ยนหรือหาย secret ที่เก็บไว้จะอ่านไม่ได้ และทุกคนที่เปิด two-step sign-in ไว้ต้องให้ผู้ดูแลกด reset ให้ ตอนพัฒนาใช้ key ใน `application.yml` ส่วน production ใช้ `AC_ENCRYPTION_PASSWORD` และ `AC_ENCRYPTION_SALT` (`tools/gen-keys.sh` สร้างให้)
 
