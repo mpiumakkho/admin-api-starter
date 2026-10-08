@@ -80,6 +80,10 @@ public class UserCredential {
         this.pendingTwoFactorSecret = null;
     }
 
+    public UUID getUserId() {
+        return userId;
+    }
+
     public @Nullable String getPasswordHash() {
         return passwordHash;
     }

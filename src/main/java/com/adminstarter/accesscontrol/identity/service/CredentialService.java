@@ -19,6 +19,9 @@ public interface CredentialService {
     /** Sign-in went through: the count of wrong attempts starts again */
     void signInSucceeded(UUID userId);
 
-    /** Sets a password from an email link; weak_password when it is too short. Ends the user's sessions. */
+    /**
+     * Sets a password from an email link; weak_password or password_reused when it breaks the password rules of the
+     * settings (P-017). Ends the user's sessions.
+     */
     void setPassword(UUID userId, String password);
 }

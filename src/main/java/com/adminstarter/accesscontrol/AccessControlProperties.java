@@ -19,7 +19,6 @@ public record AccessControlProperties(
         @DefaultValue("Admin") String productName,
         @DefaultValue Token token,
         @DefaultValue Cookie cookie,
-        @DefaultValue Password password,
         @DefaultValue Lockout lockout,
         @DefaultValue Cors cors,
         @DefaultValue RateLimit rateLimit,
@@ -52,8 +51,6 @@ public record AccessControlProperties(
             @DefaultValue("__Secure-ac_rt") String name,
             @DefaultValue("/api/auth") String path,
             @DefaultValue("true") boolean secure) {}
-
-    public record Password(@DefaultValue("8") int minLength) {}
 
     /** After {@code maxAttempts} wrong passwords in a row, lock for baseDuration, doubling up to maxDuration */
     public record Lockout(

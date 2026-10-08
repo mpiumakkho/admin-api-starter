@@ -5,6 +5,7 @@ import static com.adminstarter.accesscontrol.common.constant.ErrorCode.NOT_FOUND
 import com.adminstarter.accesscontrol.authorization.service.RoleService;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.common.dto.FieldChange;
+import com.adminstarter.accesscontrol.settings.dto.PasswordPolicyResponse;
 import com.adminstarter.accesscontrol.settings.dto.SettingsResponse;
 import com.adminstarter.accesscontrol.settings.dto.UpdateSettingsRequest;
 import com.adminstarter.accesscontrol.settings.entity.AdminSettings;
@@ -54,6 +55,13 @@ public class SettingsServiceImpl implements SettingsService {
     @Cacheable(cacheNames = TWO_FACTOR_ROLES_CACHE)
     public boolean requiresTwoFactor(UUID roleId) {
         return load().getTwoFactorRoleIds().contains(roleId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PasswordPolicyResponse passwordPolicy() {
+        var current = load();
+        return new PasswordPolicyResponse(current.getPasswordMinLength(), current.getPasswordHistory());
     }
 
     @CacheEvict(cacheNames = TWO_FACTOR_ROLES_CACHE, allEntries = true)

@@ -29,6 +29,8 @@ public enum ErrorCode {
     DEFAULT_ROLE(HttpStatus.CONFLICT),
     EMAIL_DOMAIN(HttpStatus.UNPROCESSABLE_CONTENT),
     WEAK_PASSWORD(HttpStatus.UNPROCESSABLE_CONTENT),
+    /** One of the user's most recent passwords (the settings' passwordHistory, P-017) */
+    PASSWORD_REUSED(HttpStatus.UNPROCESSABLE_CONTENT),
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS);
 
     private final HttpStatus status;

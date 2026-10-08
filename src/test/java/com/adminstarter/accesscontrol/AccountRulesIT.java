@@ -1,23 +1,31 @@
 package com.adminstarter.accesscontrol;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.verify;
 
 import com.adminstarter.accesscontrol.identity.service.TotpService;
 import com.adminstarter.support.ApiIntegrationTest;
+import java.net.URI;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The account rules in the settings (API.md, "Settings", "Roles that must use two-step sign-in"). The database is
- * shared by every test class, so each test puts back the settings it changes.
+ * The account rules in the settings (API.md, "Settings", "Roles that must use two-step sign-in", "Password rules").
+ * The database is shared by every test class, so each test puts back the settings it changes.
  */
 class AccountRulesIT extends ApiIntegrationTest {
 
@@ -119,6 +127,95 @@ class AccountRulesIT extends ApiIntegrationTest {
         });
         // Once the role no longer requires it, the same token gets through again
         assertThat(get("/api/users", user)).hasStatusOk();
+    }
+
+    // Password rules -----------------------------------------------------------------------------------------------
+
+    @Test
+    void anyone_can_read_the_password_rules_without_signing_in() {
+        assertThat(mvc.get().uri("/api/auth/password-policy").exchange())
+                .hasStatusOk().bodyJson().isStrictlyEqualTo("{\"minLength\": 8, \"history\": 0}");
+        withSettings(admin(), Map.of("passwordMinLength", 10, "passwordHistory", 3), () ->
+                assertThat(mvc.get().uri("/api/auth/password-policy").exchange())
+                        .hasStatusOk().bodyJson().isStrictlyEqualTo("{\"minLength\": 10, \"history\": 3}"));
+    }
+
+    @Test
+    void a_new_password_must_be_as_long_as_the_settings_say_wherever_it_is_set() {
+        var admin = admin();
+        var user = newUser("Viewer", "first-pass-1");
+        var invited = uniqueEmail();
+        assertThat(send(HttpMethod.POST, "/api/users", admin, draft(invited, roleId(admin, "Viewer"), "invited"))).hasStatusOk();
+        withSettings(admin, Map.of("passwordMinLength", 14), () -> {
+            assertRefused(changePassword(user, "first-pass-1", "thirteen-char"), HttpStatus.UNPROCESSABLE_CONTENT, "weak_password");
+            assertThat(changePassword(user, "first-pass-1", "fourteen-chars")).hasStatus(HttpStatus.NO_CONTENT);
+
+            // A refused password leaves the link working
+            var token = invitationToken(invited);
+            assertRefused(fromLink("/api/auth/activate", token, "thirteen-char"), HttpStatus.UNPROCESSABLE_CONTENT, "weak_password");
+            assertThat(fromLink("/api/auth/activate", token, "fourteen-chars")).hasStatus(HttpStatus.NO_CONTENT);
+
+            requestReset(invited);
+            var reset = resetToken(invited);
+            assertRefused(fromLink("/api/auth/password-reset/confirm", reset, "thirteen-char"),
+                    HttpStatus.UNPROCESSABLE_CONTENT, "weak_password");
+            assertThat(fromLink("/api/auth/password-reset/confirm", reset, "a-longer-password")).hasStatus(HttpStatus.NO_CONTENT);
+        });
+    }
+
+    @Test
+    void a_recent_password_cannot_be_chosen_again() {
+        var admin = admin();
+        var user = newUser("Viewer", "password-one");
+        var email = user.user().get("email").asString();
+        // With passwordHistory 0, nothing is checked
+        assertThat(changePassword(user, "password-one", "password-one")).hasStatus(HttpStatus.NO_CONTENT);
+        withSettings(admin, Map.of("passwordHistory", 3), () -> {
+            // The current password counts as one of the three
+            assertRefused(changePassword(user, "password-one", "password-one"), HttpStatus.UNPROCESSABLE_CONTENT, "password_reused");
+            assertThat(changePassword(user, "password-one", "password-two")).hasStatus(HttpStatus.NO_CONTENT);
+            assertRefused(changePassword(user, "password-two", "password-one"), HttpStatus.UNPROCESSABLE_CONTENT, "password_reused");
+            assertThat(changePassword(user, "password-two", "password-three")).hasStatus(HttpStatus.NO_CONTENT);
+            assertRefused(changePassword(user, "password-three", "password-one"), HttpStatus.UNPROCESSABLE_CONTENT, "password_reused");
+            assertThat(changePassword(user, "password-three", "password-four")).hasStatus(HttpStatus.NO_CONTENT);
+            // password-one is now the fourth most recent
+            assertThat(changePassword(user, "password-four", "password-one")).hasStatus(HttpStatus.NO_CONTENT);
+
+            // Resetting someone's password keeps the old one in their history: the three most recent are now
+            // password-one (the one the reset replaced), password-four and password-three
+            assertThat(send(HttpMethod.POST, "/api/users/" + user.userId() + "/reset-password", admin, null))
+                    .hasStatus(HttpStatus.NO_CONTENT);
+            var token = resetToken(email);
+            for (var recent : List.of("password-one", "password-four", "password-three")) {
+                assertRefused(fromLink("/api/auth/password-reset/confirm", token, recent),
+                        HttpStatus.UNPROCESSABLE_CONTENT, "password_reused");
+            }
+            assertThat(fromLink("/api/auth/password-reset/confirm", token, "password-two")).hasStatus(HttpStatus.NO_CONTENT);
+            assertThat(login(email, "password-two", null)).hasStatusOk();
+        });
+    }
+
+    private MvcTestResult changePassword(Browser user, String currentPassword, String newPassword) {
+        return send(HttpMethod.POST, "/api/me/password", user, Map.of("currentPassword", currentPassword, "newPassword", newPassword));
+    }
+
+    /** Accepting an invitation or confirming a reset, with the token from the email */
+    private MvcTestResult fromLink(String path, String token, String password) {
+        return mvc.post().uri(path).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("token", token, "password", password))).exchange();
+    }
+
+    private void requestReset(String email) {
+        assertThat(mvc.post().uri("/api/auth/password-reset/request").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("email", email))).exchange()).hasStatus(HttpStatus.ACCEPTED);
+    }
+
+    /** The token in the last password reset emailed to this address */
+    private String resetToken(String email) {
+        var link = ArgumentCaptor.forClass(String.class);
+        verify(notifications, atLeastOnce()).sendPasswordReset(eq(email), any(), link.capture(), any(Instant.class));
+        var query = URI.create(link.getValue()).getQuery();
+        return query.substring(query.indexOf("token=") + "token=".length());
     }
 
     /** A new role granting these permissions */
