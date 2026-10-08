@@ -50,6 +50,10 @@ access-control:
   mail:
     from: no-reply@localhost
     base-url: http://localhost:4200
+  # Development only; production takes AC_ENCRYPTION_PASSWORD and AC_ENCRYPTION_SALT (tools/gen-keys.sh)
+  encryption:
+    password: development-only-encryption-password
+    salt: 9f2d6c1a84e03b57d1c6a2e9f0b47c38
   bootstrap:
     admin-email: ${ACCESS_CONTROL_BOOTSTRAP_ADMIN_EMAIL:admin@example.com}
     admin-password: ${ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD:}

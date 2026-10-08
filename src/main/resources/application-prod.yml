@@ -31,6 +31,9 @@ access-control:
   mail:
     from: ${AC_MAIL_FROM}
     base-url: ${AC_DASHBOARD_URL}
+  encryption:
+    password: ${AC_ENCRYPTION_PASSWORD}
+    salt: ${AC_ENCRYPTION_SALT}
 
 logging:
   structured:

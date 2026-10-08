@@ -26,6 +26,7 @@ public record AccessControlProperties(
         @DefaultValue("60s") Duration permissionCacheTtl,
         @DefaultValue Audit audit,
         @DefaultValue Mail mail,
+        @DefaultValue Encryption encryption,
         @DefaultValue Bootstrap bootstrap) {
 
     /**
@@ -83,6 +84,14 @@ public record AccessControlProperties(
             @DefaultValue("no-reply@localhost") String from,
             @DefaultValue("http://localhost:4200") String baseUrl,
             @DefaultValue("1h") Duration resetLinkTtl) {}
+
+    /**
+     * The key for secrets kept in the database, such as two-step sign-in secrets: AES-256-GCM with a key derived from
+     * the password and salt. tools/gen-keys.sh makes a pair. Changing either makes the stored secrets unreadable.
+     *
+     * @param salt hex
+     */
+    public record Encryption(@Nullable String password, @Nullable String salt) {}
 
     /**
      * The first administrator, created when there are no users yet.
