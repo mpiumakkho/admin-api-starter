@@ -2,21 +2,27 @@ package com.adminstarter.accesscontrol;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.adminstarter.accesscontrol.identity.service.TotpService;
 import com.adminstarter.support.ApiIntegrationTest;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The account rules in the settings (API.md, "Settings"). The database is shared by every test class, so each test
- * puts back the settings it changes.
+ * The account rules in the settings (API.md, "Settings", "Roles that must use two-step sign-in"). The database is
+ * shared by every test class, so each test puts back the settings it changes.
  */
 class AccountRulesIT extends ApiIntegrationTest {
+
+    @Autowired
+    TotpService totp;
 
     @Test
     void the_account_rules_start_at_their_defaults_and_stay_within_their_ranges() {
@@ -42,7 +48,7 @@ class AccountRulesIT extends ApiIntegrationTest {
     @Test
     void two_factor_roles_are_kept_without_duplicates_and_logged_as_added_and_removed() {
         var admin = admin();
-        var role = newRole(admin, List.of());
+        var role = id(newRole(admin, List.of()));
         withSettings(admin, Map.of("twoFactorRoleIds", List.of(role, role), "passwordMinLength", 12), () -> {
             var settings = body(get("/api/settings", admin));
             assertThat(strings(settings.get("twoFactorRoleIds"))).containsExactly(role);
@@ -68,8 +74,8 @@ class AccountRulesIT extends ApiIntegrationTest {
     @Test
     void deleting_a_role_takes_it_off_the_two_factor_roles_unless_the_delete_is_refused() {
         var admin = admin();
-        var held = newRole(admin, List.of());
-        var spare = newRole(admin, List.of());
+        var held = id(newRole(admin, List.of()));
+        var spare = id(newRole(admin, List.of()));
         assertThat(send(HttpMethod.POST, "/api/users", admin, draft(uniqueEmail(), UUID.fromString(held), "active"))).hasStatusOk();
         withSettings(admin, Map.of("twoFactorRoleIds", List.of(held, spare)), () -> {
             assertRefused(send(HttpMethod.DELETE, "/api/roles/" + held, admin, null), HttpStatus.CONFLICT, "role_in_use");
@@ -78,11 +84,48 @@ class AccountRulesIT extends ApiIntegrationTest {
         });
     }
 
-    /** A new role granting these permissions; its id */
-    protected String newRole(Browser admin, List<String> permissions) {
+    // Roles that must use two-step sign-in ---------------------------------------------------------------------------
+
+    @Test
+    void a_role_that_requires_two_step_sign_in_holds_back_everything_but_turning_it_on() {
+        var admin = admin();
+        var role = newRole(admin, List.of("users.view", "roles.view", "activity.view"));
+        var user = newUser(role.get("name").asString(), "guarded-pass-1");
+        var email = user.user().get("email").asString();
+        withSettings(admin, Map.of("twoFactorRoleIds", List.of(id(role))), () -> {
+            // Signing in still works; after that, only what turning it on needs
+            assertThat(login(email, "guarded-pass-1", null)).hasStatusOk();
+            assertRefused(get("/api/users", user), HttpStatus.FORBIDDEN, "two_factor_mandatory");
+            assertRefused(get("/api/activity", user), HttpStatus.FORBIDDEN, "two_factor_mandatory");
+            assertRefused(send(HttpMethod.PATCH, "/api/users/" + user.userId(), user, Map.of("phone", "1")),
+                    HttpStatus.FORBIDDEN, "two_factor_mandatory");
+            assertThat(get("/api/me", user)).hasStatusOk();
+            assertThat(get("/api/settings", user)).hasStatusOk();
+            assertThat(get("/api/roles", user)).hasStatusOk();
+
+            var secret = body(send(HttpMethod.POST, "/api/me/two-factor", user, null)).get("secret").asString();
+            assertThat(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", totp.codeAt(secret, Instant.now()))))
+                    .hasStatusOk().bodyJson().extractingPath("$.twoFactor").isEqualTo(true);
+            assertThat(get("/api/users", user)).hasStatusOk();
+            assertThat(get("/api/activity", user)).hasStatusOk();
+            assertRefused(send(HttpMethod.POST, "/api/me/two-factor/disable", user, Map.of("code", totp.codeAt(secret, Instant.now()))),
+                    HttpStatus.FORBIDDEN, "two_factor_mandatory");
+
+            // An administrator can still turn it off, for a lost phone; then it has to be turned on again first
+            assertThat(send(HttpMethod.POST, "/api/users/" + user.userId() + "/two-factor/reset", admin, null))
+                    .hasStatusOk().bodyJson().extractingPath("$.twoFactor").isEqualTo(false);
+            assertRefused(get("/api/users", user), HttpStatus.FORBIDDEN, "two_factor_mandatory");
+            assertThat(get("/api/me", user)).hasStatusOk().bodyJson().extractingPath("$.twoFactor").isEqualTo(false);
+        });
+        // Once the role no longer requires it, the same token gets through again
+        assertThat(get("/api/users", user)).hasStatusOk();
+    }
+
+    /** A new role granting these permissions */
+    protected JsonNode newRole(Browser admin, List<String> permissions) {
         var role = send(HttpMethod.POST, "/api/roles", admin, Map.of("name", "Rule " + UUID.randomUUID(), "permissions", permissions));
         assertThat(role).hasStatusOk();
-        return body(role).get("id").asString();
+        return body(role);
     }
 
     /** Runs {@code test} with these settings, then puts back what they were */
@@ -96,6 +139,10 @@ class AccountRulesIT extends ApiIntegrationTest {
         } finally {
             assertThat(send(HttpMethod.PATCH, "/api/settings", admin, restore)).hasStatusOk();
         }
+    }
+
+    protected static String id(JsonNode node) {
+        return node.get("id").asString();
     }
 
     protected static List<String> strings(JsonNode array) {

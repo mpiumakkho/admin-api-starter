@@ -1,6 +1,7 @@
 package com.adminstarter.accesscontrol.identity.service;
 
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.INVALID_CODE;
+import static com.adminstarter.accesscontrol.common.constant.ErrorCode.TWO_FACTOR_MANDATORY;
 
 import com.adminstarter.accesscontrol.AccessControlProperties;
 import com.adminstarter.accesscontrol.common.context.Actor;
@@ -10,6 +11,7 @@ import com.adminstarter.accesscontrol.identity.entity.UserCredential;
 import com.adminstarter.accesscontrol.identity.event.TwoFactorChanged;
 import com.adminstarter.accesscontrol.identity.policy.SelfProtectionPolicy;
 import com.adminstarter.accesscontrol.identity.repository.UserCredentialRepository;
+import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.cache.annotation.CacheEvict;
@@ -18,8 +20,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Two-step sign-in with an authenticator app. People turn it on and off for themselves, with a code; with
- * users.edit they can turn it off for someone they manage who lost their phone, but never on.
+ * Two-step sign-in with an authenticator app. People turn it on and off for themselves, with a code, except that
+ * nobody turns it off while their role requires it (P-016); with users.edit they can turn it off for someone they
+ * manage who lost their phone, but never on.
  */
 @Service
 @Transactional
@@ -30,15 +33,18 @@ public class TwoFactorService {
     private final UserAccessService access;
     private final TotpService totp;
     private final UserMapper mapper;
+    private final SettingsService settings;
     private final ApplicationEventPublisher events;
     private final String issuer;
 
     public TwoFactorService(UserCredentialRepository credentials, UserAccessService access, TotpService totp,
-            UserMapper mapper, ApplicationEventPublisher events, AccessControlProperties properties) {
+            UserMapper mapper, SettingsService settings, ApplicationEventPublisher events,
+            AccessControlProperties properties) {
         this.credentials = credentials;
         this.access = access;
         this.totp = totp;
         this.mapper = mapper;
+        this.settings = settings;
         this.events = events;
         this.issuer = properties.productName();
     }
@@ -61,8 +67,11 @@ public class TwoFactorService {
         return changed(actor, actor.userId(), true);
     }
 
-    /** Your own, with a current code */
+    /** Your own, with a current code; two_factor_mandatory while your role requires it */
     public UserResponse disable(Actor actor, String code) {
+        if (settings.requiresTwoFactor(actor.roleId())) {
+            throw TWO_FACTOR_MANDATORY.exception();
+        }
         var credential = load(actor.userId());
         var secret = credential.getTwoFactorSecret();
         if (secret == null || !totp.verify(secret, code)) {
@@ -72,7 +81,10 @@ public class TwoFactorService {
         return changed(actor, actor.userId(), false);
     }
 
-    /** Someone else's, for a lost phone; your own goes through disable, with a code */
+    /**
+     * Someone else's, for a lost phone; your own goes through disable, with a code. Allowed even when their role
+     * requires it: they then have to turn it on again before anything else.
+     */
     public UserResponse reset(Actor actor, UUID userId) {
         SelfProtectionPolicy.forbidSelf(actor, List.of(userId));
         access.findManageable(actor, userId);

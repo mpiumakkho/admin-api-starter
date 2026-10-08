@@ -5,6 +5,7 @@ import com.adminstarter.accesscontrol.security.PermissionAuthenticationConverter
 import com.adminstarter.accesscontrol.security.RateLimitFilter;
 import com.adminstarter.accesscontrol.security.RequestContextFilter;
 import com.adminstarter.accesscontrol.security.SecurityProblemHandler;
+import com.adminstarter.accesscontrol.security.TwoFactorSetupFilter;
 import jakarta.servlet.DispatcherType;
 import java.time.Duration;
 import java.util.List;
@@ -21,6 +22,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.session.DisableEncodeUrlFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -64,7 +66,9 @@ public class SecurityConfig {
                         .authenticationEntryPoint(problems)
                         .accessDeniedHandler(problems))
                 .addFilterBefore(requestContext, DisableEncodeUrlFilter.class)
-                .addFilterAfter(new RateLimitFilter(properties, problems), RequestContextFilter.class);
+                .addFilterAfter(new RateLimitFilter(properties, problems), RequestContextFilter.class)
+                // Once the token says who it is: a role that requires two-step sign-in holds everything else back
+                .addFilterAfter(new TwoFactorSetupFilter(problems), BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 
