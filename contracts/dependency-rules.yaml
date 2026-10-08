@@ -30,9 +30,7 @@ backend:
     - id: R8
       name: no-cycles-between-modules
       description: Slices accesscontrol.(*) are free of cycles. security declares SessionChecker for authentication
-        to implement, because authentication already depends on security to issue tokens (P-010). Each module's spi
-        package is a slice of its own, since implementing an spi depends on the contract, not on the module that calls
-        it; settings implements audit's ActivityRetentionProvider although audit listens to settings' events (P-018).
+        to implement, because authentication already depends on security to issue tokens (P-010).
       test: ModuleBoundaryTest
     - { id: R9, name: forbidden-packages, test: ForbiddenPackageTest }
     - { id: R10, name: transactional-only-in-service, test: TransactionRuleTest }
