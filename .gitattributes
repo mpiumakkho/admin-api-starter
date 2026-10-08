@@ -1,0 +1,6 @@
+# Text files are stored with LF; scripts must stay LF on every checkout, or Linux (and Docker builds) cannot run them
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.jar binary
+*.png binary
