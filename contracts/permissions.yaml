@@ -1,0 +1,62 @@
+# contracts/permissions.yaml — the permission catalog, starting roles and endpoint → permission map.
+# Mirrors CorePermissions.java, CoreRoles.java and app/config/AppRoles.java, and admin-ng-starter's catalog.ts.
+# SecurityRuleTest checks that every hasAuthority() names a declared code. P-002: codes are resource.action.
+schema_version: 1
+
+code_pattern: "^[a-z][a-z0-9-]*\\.[a-z][a-z0-9-]*$"
+
+permissions:
+  - { code: "users.view",      description: "View users" }
+  - { code: "users.create",    description: "Add and invite users" }
+  - { code: "users.edit",      description: "Edit, suspend and reset users" }
+  - { code: "users.delete",    description: "Delete users" }
+  - { code: "roles.view",      description: "View roles" }
+  - { code: "roles.manage",    description: "Create and edit roles" }
+  - { code: "activity.view",   description: "View activity" }
+  - { code: "activity.export", description: "Export activity" }
+  - { code: "settings.view",   description: "View settings" }
+  - { code: "settings.manage", description: "Change settings" }
+
+# Created on the first start only; afterwards they belong to whoever manages roles
+roles:
+  - { code: ADMINISTRATOR, name: Administrator, is_system: true,  permissions: "*", source: CoreRoles }
+  - { code: MANAGER,       name: Manager,       is_system: true,  source: AppRoles,
+      permissions: ["users.view", "users.create", "users.edit", "roles.view", "activity.view", "activity.export", "settings.view"] }
+  - { code: SUPPORT,       name: Support,       is_system: false, source: AppRoles,
+      permissions: ["users.view", "users.edit", "roles.view", "activity.view"] }
+  - { code: VIEWER,        name: Viewer,        is_system: false, source: AppRoles, default_for_new_users: true,
+      permissions: ["users.view", "roles.view"] }
+
+# authenticated = any signed-in user; the service applies the finer rules API.md lists
+endpoints:
+  - { method: POST,   path: "/api/auth/login",                    permission: public }
+  - { method: POST,   path: "/api/auth/refresh",                  permission: public (refresh cookie) }
+  - { method: POST,   path: "/api/auth/logout",                   permission: public (refresh cookie) }
+  - { method: POST,   path: "/api/auth/activate",                 permission: public (email link) }
+  - { method: POST,   path: "/api/auth/password-reset/request",   permission: public }
+  - { method: POST,   path: "/api/auth/password-reset/confirm",   permission: public (email link) }
+  - { method: GET,    path: "/api/me",                            permission: authenticated }
+  - { method: POST,   path: "/api/me/password",                   permission: authenticated }
+  - { method: POST,   path: "/api/me/two-factor",                 permission: authenticated }
+  - { method: POST,   path: "/api/me/two-factor/confirm",         permission: authenticated }
+  - { method: POST,   path: "/api/me/two-factor/disable",         permission: authenticated }
+  - { method: GET,    path: "/api/users",                         permission: authenticated, note: "only yourself without users.view" }
+  - { method: POST,   path: "/api/users",                         permission: users.create }
+  - { method: POST,   path: "/api/users/import",                  permission: users.create }
+  - { method: PATCH,  path: "/api/users/{id}",                    permission: authenticated, note: "own name, phone, photo without users.edit" }
+  - { method: POST,   path: "/api/users/status",                  permission: users.edit }
+  - { method: POST,   path: "/api/users/delete",                  permission: users.delete }
+  - { method: POST,   path: "/api/users/{id}/reset-password",     permission: users.edit }
+  - { method: POST,   path: "/api/users/{id}/resend-invite",      permission: users.create }
+  - { method: POST,   path: "/api/users/{id}/two-factor/reset",   permission: users.edit }
+  - { method: GET,    path: "/api/users/{id}/sessions",           permission: authenticated, note: "own, or users.edit" }
+  - { method: POST,   path: "/api/users/{id}/sessions/end",       permission: authenticated, note: "own, or users.edit" }
+  - { method: DELETE, path: "/api/sessions/{id}",                 permission: authenticated, note: "own, or users.edit" }
+  - { method: GET,    path: "/api/roles",                         permission: authenticated }
+  - { method: POST,   path: "/api/roles",                         permission: roles.manage }
+  - { method: PATCH,  path: "/api/roles/{id}",                    permission: roles.manage }
+  - { method: DELETE, path: "/api/roles/{id}",                    permission: roles.manage }
+  - { method: GET,    path: "/api/activity",                      permission: authenticated, note: "empty without activity.view" }
+  - { method: GET,    path: "/api/settings",                      permission: authenticated }
+  - { method: PATCH,  path: "/api/settings",                      permission: settings.manage }
+  - { method: GET,    path: "/api/events",                        permission: authenticated }

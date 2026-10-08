@@ -1,0 +1,46 @@
+# contracts/dependency-rules.yaml — module and layer rules, enforced by the ArchUnit tests in
+# src/test/java/com/adminstarter/architecture. Same rule ids as the access-control template.
+schema_version: 1
+
+backend:
+  root_foundation: "com.adminstarter.accesscontrol"
+  root_application: "com.adminstarter.app"
+  modules: [identity, authentication, authorization, audit, notification, settings, liveupdate]
+  public_surface_layers: [service, dto, event, spi]
+  private_layers: [repository, entity, controller, policy]
+  rules:
+    - { id: R1, name: foundation-must-not-depend-on-application, test: ModuleBoundaryTest }
+    - id: R2
+      name: cross-module-only-via-public-surface
+      description: A module may use another's service, dto, event and spi packages (and its root classes, such as
+        CorePermissions), never its repository, entity, controller or policy.
+      test: ModuleBoundaryTest
+    - { id: R2b, name: application-only-via-public-surface, test: ModuleBoundaryTest }
+    - { id: R4a, name: controller-must-not-use-repository, test: LayerRuleTest }
+    - { id: R4b, name: entity-must-not-depend-on-upper-layers, test: LayerRuleTest }
+    - { id: R4c, name: repository-must-not-depend-on-service, test: LayerRuleTest }
+    - { id: R4d, name: dto-must-not-depend-on-entity, test: LayerRuleTest }
+    - id: R5
+      name: audit-listens-only
+      description: audit depends only on itself, common, other modules' event packages, AccessControlProperties and
+        libraries. liveupdate in turn hears about changes only through audit's ActivityRecorded.
+      test: ModuleBoundaryTest
+    - { id: R6, name: security-does-not-touch-repositories, test: LayerRuleTest }
+    - { id: R7, name: common-does-not-depend-on-modules, test: ModuleBoundaryTest }
+    - id: R8
+      name: no-cycles-between-modules
+      description: Slices accesscontrol.(*) are free of cycles. security declares SessionChecker for authentication
+        to implement, because authentication already depends on security to issue tokens (P-010).
+      test: ModuleBoundaryTest
+    - { id: R9, name: forbidden-packages, test: ForbiddenPackageTest }
+    - { id: R10, name: transactional-only-in-service, test: TransactionRuleTest }
+    - id: S1
+      name: endpoints-require-preauthorize
+      description: Every handler in a controller carries @PreAuthorize (isAuthenticated() at least), except
+        AuthController, which is open to everyone and rate-limited.
+      test: SecurityRuleTest
+    - id: S2
+      name: no-hasRole-and-known-permissions
+      description: No hasRole( anywhere; every hasAuthority('…') names a code a PermissionCatalog declares.
+      test: SecurityRuleTest
+    - { id: N1, name: naming, test: NamingRuleTest, see: contracts/naming.yaml }

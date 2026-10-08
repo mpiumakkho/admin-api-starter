@@ -1,0 +1,92 @@
+package com.adminstarter.accesscontrol.identity.service;
+
+import static com.adminstarter.accesscontrol.common.constant.ErrorCode.INVALID_CODE;
+
+import com.adminstarter.accesscontrol.AccessControlProperties;
+import com.adminstarter.accesscontrol.common.context.Actor;
+import com.adminstarter.accesscontrol.identity.dto.TwoFactorSetupResponse;
+import com.adminstarter.accesscontrol.identity.dto.UserResponse;
+import com.adminstarter.accesscontrol.identity.entity.UserCredential;
+import com.adminstarter.accesscontrol.identity.event.TwoFactorChanged;
+import com.adminstarter.accesscontrol.identity.policy.SelfProtectionPolicy;
+import com.adminstarter.accesscontrol.identity.repository.UserCredentialRepository;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Two-step sign-in with an authenticator app. People turn it on and off for themselves, with a code; with
+ * users.edit they can turn it off for someone they manage who lost their phone, but never on.
+ */
+@Service
+@Transactional
+@CacheEvict(cacheNames = UserServiceImpl.ACCOUNTS_CACHE, allEntries = true)
+public class TwoFactorService {
+
+    private final UserCredentialRepository credentials;
+    private final UserAccessService access;
+    private final TotpService totp;
+    private final UserMapper mapper;
+    private final ApplicationEventPublisher events;
+    private final String issuer;
+
+    public TwoFactorService(UserCredentialRepository credentials, UserAccessService access, TotpService totp,
+            UserMapper mapper, ApplicationEventPublisher events, AccessControlProperties properties) {
+        this.credentials = credentials;
+        this.access = access;
+        this.totp = totp;
+        this.mapper = mapper;
+        this.events = events;
+        this.issuer = properties.productName();
+    }
+
+    /** A new secret, pending until confirmed with a code from it */
+    public TwoFactorSetupResponse start(Actor actor) {
+        var user = access.find(actor.userId());
+        var secret = totp.createSecret();
+        load(actor.userId()).startTwoFactor(secret);
+        return new TwoFactorSetupResponse(secret, totp.uri(secret, user.getEmail(), issuer));
+    }
+
+    public UserResponse confirm(Actor actor, String code) {
+        var credential = load(actor.userId());
+        var pending = credential.getPendingTwoFactorSecret();
+        if (pending == null || !totp.verify(pending, code)) {
+            throw INVALID_CODE.exception();
+        }
+        credential.confirmTwoFactor();
+        return changed(actor, actor.userId(), true);
+    }
+
+    /** Your own, with a current code */
+    public UserResponse disable(Actor actor, String code) {
+        var credential = load(actor.userId());
+        var secret = credential.getTwoFactorSecret();
+        if (secret == null || !totp.verify(secret, code)) {
+            throw INVALID_CODE.exception();
+        }
+        credential.turnOffTwoFactor();
+        return changed(actor, actor.userId(), false);
+    }
+
+    /** Someone else's, for a lost phone; your own goes through disable, with a code */
+    public UserResponse reset(Actor actor, UUID userId) {
+        SelfProtectionPolicy.forbidSelf(actor, List.of(userId));
+        access.findManageable(actor, userId);
+        load(userId).turnOffTwoFactor();
+        return changed(actor, userId, false);
+    }
+
+    private UserResponse changed(Actor actor, UUID userId, boolean enabled) {
+        var user = access.find(userId);
+        events.publishEvent(new TwoFactorChanged(actor.userId(), userId, user.getFullName(), enabled));
+        return mapper.toResponse(user, enabled);
+    }
+
+    private UserCredential load(UUID userId) {
+        return credentials.findById(userId).orElseGet(() -> credentials.save(new UserCredential(userId)));
+    }
+}

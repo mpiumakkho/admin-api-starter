@@ -1,0 +1,38 @@
+# Production: only what differs from application.yml. Every secret comes from the environment.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+
+server:
+  # Behind a reverse proxy: take the client's address and scheme from X-Forwarded-*
+  forward-headers-strategy: native
+
+access-control:
+  token:
+    keys:
+      - kid: ${AC_JWT_KID}
+        private-key: ${AC_JWT_PRIVATE_KEY}
+        public-key: ${AC_JWT_PUBLIC_KEY}
+  cookie:
+    name: __Secure-ac_rt
+    secure: true
+  cors:
+    allowed-origins: ${AC_ALLOWED_ORIGINS}
+  mail:
+    from: ${AC_MAIL_FROM}
+    base-url: ${AC_DASHBOARD_URL}
+
+logging:
+  structured:
+    format:
+      console: ecs

@@ -1,0 +1,94 @@
+# contracts/project-profile.yaml — versions, names and fixed choices of admin-api-starter.
+# Same schema as the access-control template's profile. A value that differs from the template names the
+# project ADR (docs/02-DECISIONS.md) that changed it. Do not change a value here without an ADR.
+schema_version: 1
+
+project:
+  name: admin-api-starter
+  title: "User management API for admin-ng-starter"
+  kind: service
+  motto: "Design like microservices, build like modular monolith."
+  template: access-control (accessbase-docs, schema_version 1)
+  org: adminstarter
+  repos:
+    backend: admin-api-starter
+    frontend: admin-ng-starter        # P-009: an existing Angular app, not the template's ng-zorro workspace
+
+backend:
+  language: java
+  java_release: 25
+  build: maven
+  maven_layout: single-module
+  group_id: "com.adminstarter"
+  artifact_id: admin-api-starter
+  root_packages:
+    foundation: "com.adminstarter.accesscontrol"
+    application: "com.adminstarter.app"
+  spring_boot: "4.1.x"
+  spring_security: "7.x"
+  jakarta_ee: "11"
+  json: jackson3                      # tools.jackson.*; annotations stay com.fasterxml.jackson.annotation
+  database: postgresql
+  postgres_major: 17
+  schemas:
+    foundation: access_control
+    application: app
+  primary_key: uuid-v7                # Hibernate @UuidGenerator(style = VERSION_7)
+  migration: flyway
+  starters_required:
+    - spring-boot-starter-webmvc
+    - spring-boot-starter-security
+    - spring-boot-starter-security-oauth2-resource-server   # Boot 4 name of oauth2-resource-server
+    - spring-boot-starter-data-jpa
+    - spring-boot-starter-flyway
+    - spring-boot-starter-validation
+    - spring-boot-starter-cache
+    - spring-boot-starter-actuator
+    - spring-boot-starter-mail
+    - spring-boot-starter-thymeleaf      # email templates only
+  libraries_required:
+    - com.github.ben-manes.caffeine:caffeine
+    - com.bucket4j:bucket4j_jdk17-core   # the template's bucket4j-core, under its current artifact id
+    - org.bouncycastle:bcprov-jdk18on    # Argon2id
+    - org.flywaydb:flyway-database-postgresql
+    - org.postgresql:postgresql
+  test_starters_required:
+    - spring-boot-starter-webmvc-test
+    - spring-boot-starter-security-test
+    - spring-boot-starter-data-jpa-test
+    - spring-boot-testcontainers
+    - org.testcontainers:testcontainers-postgresql
+    - com.tngtech.archunit:archunit-junit5
+  forbidden_libraries:
+    - io.jsonwebtoken:jjwt*
+    - org.keycloak:*
+    - org.springframework.boot:spring-boot-starter-web
+    - org.springframework.boot:spring-boot-starter-test
+    - org.springframework.session:*      # stateless: ADR-0003
+    - org.springframework.boot:spring-boot-starter-data-redis
+    - org.casbin:*
+  runtime_flags:
+    spring.threads.virtual.enabled: true
+  config_prefix: access-control
+
+security_defaults:
+  access_token_ttl: 15m
+  refresh_token_ttl: 12h
+  remember_token_ttl: 30d             # P-004
+  refresh_reuse_grace: 30s            # P-004
+  jwt_algorithm: RS256
+  jwt_claims: [iss, sub, iat, exp, jti, sid]   # P-004: sid instead of rv
+  refresh_cookie_name: "__Secure-ac_rt"        # P-004; ac_rt in development (no HTTPS)
+  refresh_cookie_path: /api/auth               # P-004
+  password_hash: argon2id
+  password_min_length: 8              # P-006
+  lockout_max_attempts: 5
+  permission_cache_ttl: 60s
+  audit_retention_days: 730
+
+documentation:
+  language: th
+  source_of_truth: docs/
+  trees: trees/
+  contracts: contracts/
+  api_contract: ../admin-ng-starter/src/app/user-management/API.md   # P-001

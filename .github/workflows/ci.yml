@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Structure, on the clean checkout (before target/ exists)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install pyyaml
+      - run: python .claude/skills/access-control-project-bootstrapper/scripts/check_structure.py --repo . --side backend
+
+      # 2. Unit, ArchUnit and integration tests (Testcontainers uses the runner's Docker)
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - run: ./mvnw -B verify
+
+      # 3. Known vulnerabilities in dependencies
+      - uses: actions/dependency-review-action@v4
+        if: github.event_name == 'pull_request'

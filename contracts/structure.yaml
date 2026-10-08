@@ -1,0 +1,100 @@
+# contracts/structure.yaml — canonical folder structure of admin-api-starter, machine-readable.
+# Derived from the access-control template's contract (same schema, read by the same check_structure.py);
+# where it differs, docs/02-DECISIONS.md says why (P-007, P-010, P-011, P-013).
+# Human explanation: trees/BACKEND.md
+schema_version: 1
+
+backend:
+  source_root: src/main/java/com/<org>
+  test_root: src/test/java/com/<org>
+  resources_root: src/main/resources
+
+  roots:
+    foundation: accesscontrol
+    application: app
+
+  module_layers_required: [controller, service, repository, entity, dto]
+  module_layers_optional: [event, policy, spi]
+  forbidden_folders: [util, utils, helper, helpers, misc, base, commons]
+  forbidden_class_patterns: ["*Utils", "*Helper", "Ms*", "Tb*"]
+  max_depth_from_module_root: 4
+
+  foundation_modules:
+    identity:
+      layers: [controller, service, repository, entity, dto, event, policy]
+    authentication:
+      layers: [controller, service, repository, entity, dto, event]
+    authorization:
+      layers: [controller, service, repository, entity, dto, event, policy, spi]
+      extra_files: [CorePermissions.java, CoreRoles.java]
+    audit:
+      layers: [controller, service, repository, entity, dto, event]
+    notification:
+      layers: [service]              # emails only: no controller, repository, entity or dto by design
+    settings:                        # P-007
+      layers: [controller, service, repository, entity, dto, event]
+    liveupdate:                      # P-007: the event stream, kept in memory
+      layers: [controller, service]
+
+  foundation_non_module_packages:
+    config:
+      files: [SecurityConfig.java, JwtConfig.java, CacheConfig.java, AsyncConfig.java, ClockConfig.java, JacksonConfig.java]
+    security:
+      files: [PermissionAuthenticationConverter.java, ActorAuthentication.java, SessionChecker.java,
+              RequestContextFilter.java, RateLimitFilter.java, SecurityProblemHandler.java]
+      subfolders:
+        jwt: [JwtIssuer.java, JwtKeyProvider.java]
+    common:
+      subfolders:
+        exception: [AccessControlException.java]
+        error: [ApiExceptionHandler.java]
+        context: [RequestContext.java, Actor.java, Device.java]
+        constant: [ErrorCode.java]
+        dto: [FieldChange.java]
+
+  foundation_root_files: [AccessControlProperties.java, package-info.java]
+
+  application:
+    root_files: []                   # P-013: Application.java sits in com.<org>, above both roots
+    config_files: [AppPermissions.java, AppRoles.java]
+    module_layers: [controller, service, repository, entity, dto]
+
+  resources:
+    required_files:
+      - application.yml
+      - application-prod.yml
+      - db/migration/access_control/V1__access_control_schema.sql
+      - templates/mail/invite.html
+      - templates/mail/password-reset.html
+    required_folders:
+      - db/migration/app
+    forbidden_folders: [mockup, mock, fonts, reports, static]
+
+  tests:
+    architecture_dir: architecture
+    architecture_files:
+      - ModuleBoundaryTest.java
+      - LayerRuleTest.java
+      - NamingRuleTest.java
+      - ForbiddenPackageTest.java
+      - SecurityRuleTest.java
+      - TransactionRuleTest.java
+
+  repo_root_required:
+    - src/main/java/com/adminstarter/Application.java
+    - pom.xml
+    - mvnw
+    - README.md
+    - AGENTS.md
+    - CLAUDE.md
+    - UPGRADING.md
+    - .gitignore
+    - docs/02-DECISIONS.md
+    - trees/BACKEND.md
+    - docker/docker-compose.yml
+    - docker/Dockerfile
+    - tools/gen-keys.sh
+    - tools/new-module.sh
+    - .github/workflows/ci.yml
+  # Must never be committed; run the check on a clean checkout (CI does)
+  repo_root_forbidden: [target, .idea, node_modules, "*.iml"]

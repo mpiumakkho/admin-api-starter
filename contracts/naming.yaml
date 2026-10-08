@@ -1,0 +1,43 @@
+# contracts/naming.yaml — names, checked by NamingRuleTest. Differences from the template: permission codes use
+# a dot (P-002), services may end in Initializer, dto may hold FieldChange, and the REST paths follow API.md (P-001).
+schema_version: 1
+
+backend:
+  package_module: "^[a-z]+$"
+  class_suffix_by_layer:
+    controller: [Controller]
+    service: [Service, ServiceImpl, Resolver, ResolverImpl, Synchronizer, Listener, Mapper, Support, Job, Initializer]
+    repository: [Repository]
+    entity: []                       # plain nouns, no prefix/suffix
+    dto: [Request, Response, Summary, Params, Change]
+    event: []                        # past-tense noun phrase, no "Event"
+    policy: [Policy]
+    spi: [Catalog, Template, Definition, Customizer]
+  entity_forbidden_prefix: [Ms, Tb, Tbl, T_, Ent]
+  event_forbidden_suffix: [Event, Evt]
+  exception_suffix: Exception
+  config_suffix: [Config, Properties]
+  test_suffix: { unit: Test, integration: IT }
+  permission_code: "^[a-z][a-z0-9-]*\\.[a-z][a-z0-9-]*$"
+  role_code: "^[A-Z][A-Z0-9_]*$"
+  error_code: "^[a-z][a-z_]*$"       # as the dashboard reads it: email_taken, self_change
+  config_prefix: "access-control"
+  db:
+    schema: "^[a-z_]+$"
+    table: "^[a-z][a-z0-9_]*s$"
+    column: "^[a-z][a-z0-9_]*$"
+    fk_column: "^[a-z_]+_id$"
+    constraint: "^(pk|fk|ux|ck)_[a-z0-9_]+$"
+    index: "^(ix|ux)_[a-z0-9_]+$"
+    flyway: "^V[0-9]+__[a-z0-9_]+\\.sql$"
+  rest:
+    base: /api
+    auth_base: /api/auth
+    me_base: /api/me
+    resource_plural: true
+    contract: ../admin-ng-starter/src/app/user-management/API.md
+
+git:
+  branch: "^(feat|fix|docs|refactor|test|chore)/[a-z0-9-]+$"
+  commit: "^(feat|fix|docs|refactor|test|chore)(\\([a-z-]+\\))?: .+"
+  commit_scope: module-name
