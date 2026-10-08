@@ -58,8 +58,8 @@
 ## P-006 รหัสผ่านขั้นต่ำ 8 ตัว ไม่มี username และไม่มี must-change-password
 
 - Context: frontend ตรวจรหัสผ่านขั้นต่ำ 8 ตัว (`NEW_PASSWORD_LENGTH`) เข้าสู่ระบบด้วย email และไม่มีหน้าบังคับเปลี่ยนรหัส
-- Decision: `access-control.password.min-length: 8` เข้าสู่ระบบด้วย email (ไม่สนตัวพิมพ์เล็กใหญ่ และ unique ด้วย `lower(email)`) ผู้ดูแลไม่เคยรู้รหัสผ่านของใคร: คนที่ถูกเชิญตั้งรหัสเองจากลิงก์ ส่วนการ reset จะส่งลิงก์ให้ตั้งรหัสใหม่
-- Consequences: ถ้าจะเพิ่มความยาวขั้นต่ำ ให้แก้ทั้ง property และ `NEW_PASSWORD_LENGTH`
+- Decision: `access-control.password.min-length: 8` เข้าสู่ระบบด้วย email (ไม่สนตัวพิมพ์เล็กใหญ่ และ unique ด้วย `lower(email)`) ผู้ดูแลไม่เคยรู้รหัสผ่านของใคร: คนที่ถูกเชิญตั้งรหัสเองจากลิงก์ ส่วนการ reset จะส่งลิงก์ให้ตั้งรหัสใหม่ (ดู P-017)
+- Consequences: ถ้าจะเพิ่มความยาวขั้นต่ำ ให้แก้ทั้ง property และ `NEW_PASSWORD_LENGTH` (ดู P-017)
 
 ## P-007 Module เพิ่ม: `settings` และ `liveupdate`
 
@@ -68,7 +68,7 @@
 
 ## P-008 Two-step sign-in (TOTP) อยู่ใน identity
 
-- Decision: secret อยู่ใน `user_credentials` (ตามที่ template เตรียม `mfa_secret` ไว้) algorithm คือ RFC 6238 (SHA-1, 30 วินาที, 6 หลัก, ยอมคลาด ±1 step) ตรงกับ totp.ts รหัสที่ผิดนับรวมกับรหัสผ่านที่ผิดใน lockout
+- Decision: secret อยู่ใน `user_credentials` (ตามที่ template เตรียม `mfa_secret` ไว้) algorithm คือ RFC 6238 (SHA-1, 30 วินาที, 6 หลัก, ยอมคลาด ±1 step) ตรงกับ totp.ts รหัสที่ผิดนับรวมกับรหัสผ่านที่ผิดใน lockout (ดู P-016)
 - Consequences: secret เก็บแบบไม่เข้ารหัส ถ้าต้องการเข้ารหัส at rest ให้เพิ่ม ADR (ทำแล้วใน P-014)
 
 ## P-009 Frontend คือ admin-ng-starter
@@ -80,9 +80,9 @@
 ## P-010 ปรับโครงสร้าง backend จาก trees ของ template
 
 - Decision:
-  - `security/SessionChecker` เป็น interface ที่ authentication implement เพราะ authentication พึ่ง security อยู่แล้ว (`JwtIssuer`) ถ้าให้ security ไปเรียก authentication กลับจะเกิด cycle (R8)
+  - `security/SessionChecker` เป็น interface ที่ authentication implement เพราะ authentication พึ่ง security อยู่แล้ว (`JwtIssuer`) ถ้าให้ security ไปเรียก authentication กลับจะเกิด cycle (R8) (ดู P-018)
   - `common/exception` มี `AccessControlException` ตัวเดียว ส่วน HTTP status มากับ `ErrorCode`
-  - ไม่มี `FlywayConfig` (ตั้งค่าผ่าน `spring.flyway.*`) และไม่มี `RateLimitConfig` (`RateLimitFilter` สร้างใน `SecurityConfig` เพื่อไม่ให้ servlet container ลงทะเบียน filter ซ้ำ) แต่มี `ClockConfig` กับ `JacksonConfig` เพิ่มเข้ามา
+  - ไม่มี `FlywayConfig` (ตั้งค่าผ่าน `spring.flyway.*`) และไม่มี `RateLimitConfig` (`RateLimitFilter` สร้างใน `SecurityConfig` เพื่อไม่ให้ servlet container ลงทะเบียน filter ซ้ำ) แต่มี `ClockConfig` กับ `JacksonConfig` เพิ่มเข้ามา (ดู P-016)
   - ไม่มี module ตัวอย่าง `app/inventory`
 - Consequences: `contracts/structure.yaml` ของโปรเจกต์นี้ระบุโครงสร้างจริง และ `check_structure.py` ตรวจตามนั้น
 
@@ -114,3 +114,35 @@
 - Decision: ทุกครั้งที่มี `ActivityRecorded` liveupdate จะสั่ง `NOTIFY admin_changes` ใน transaction ของการเปลี่ยนแปลงนั้น PostgreSQL ส่งออกไปตอน commit, ทิ้งไปถ้า rollback และรวม `NOTIFY` ที่ซ้ำกันใน transaction เดียวเป็นอันเดียว ส่วน `ChangeNotificationListener` ของทุก instance (รวมถึงตัวที่เกิดการเปลี่ยนแปลง) `LISTEN` อยู่บน connection ของตัวเองใน virtual thread แล้วส่ง `data: changed` ไปยัง stream ที่เปิดอยู่ ถ้า connection หลุดก็ต่อใหม่ โดยรอนานขึ้นเรื่อย ๆ และเมื่อต่อได้แล้ว จะส่ง `changed` หนึ่งครั้งเผื่อมีการเปลี่ยนแปลงที่พลาดไปช่วงนั้น ไม่ต้องใช้ Redis หรือ broker เพิ่ม
 - Consequences: แต่ละ instance ใช้ connection ใน pool ถาวรหนึ่งเส้น และ driver ของ PostgreSQL กลายเป็น dependency ตอน compile (ใช้ `PGConnection`) ถ้าจะรันหลาย instance ทุกตัวต้องใช้ `access-control.token.keys` และ `access-control.encryption` ชุดเดียวกัน ไม่อย่างนั้น token จากตัวหนึ่งจะใช้กับอีกตัวไม่ได้ ส่วน rate limit กับ cache ของสิทธิ์ยังนับแยกต่อ instance (cache มี TTL 60 วินาที)
 
+
+## P-016 Role ที่ต้องใช้ two-step sign-in (ต่อจาก P-008)
+
+- Context: API.md เพิ่ม `twoFactorRoleIds` ในการตั้งค่า คนที่ถือ role ในรายการนี้และยังไม่ได้เปิด two-step sign-in ยัง sign in ได้ แต่ทุก request ต้องตอบ `403` `two_factor_mandatory` จนกว่าจะเปิด ยกเว้นสิ่งที่ต้องใช้เพื่อเปิดมัน: `GET /me`, `GET /settings`, `GET /roles`, `POST /me/two-factor` และ `POST /me/two-factor/confirm` (ส่วน `/auth/*` ไม่ใช้ access token อยู่แล้ว)
+- Decision:
+  - `PermissionAuthenticationConverter` ใส่ `Actor.twoFactorSetupRequired` = role ต้องใช้ และบัญชียังปิดอยู่ โดยถาม `SettingsService.requiresTwoFactor(roleId)` ซึ่ง cache ไว้ใน `two-factor-roles` แบบเดียวกับ `accounts` และ `role-permissions` (evict หลัง commit ทุกครั้งที่ settings เปลี่ยน) จึงไม่ต้องใส่อะไรใน token: สถานะคำนวณใหม่ทุก request เหมือนสิทธิ์ (P-003) เปิดเสร็จ request ถัดไปก็ผ่านทันที
+  - `security/TwoFactorSetupFilter` อยู่ต่อจาก `BearerTokenAuthenticationFilter` ของ Spring จึงเห็น `Actor` แล้ว และตอบ `two_factor_mandatory` ผ่าน `SecurityProblemHandler` ก่อนการตรวจ permission ใด ๆ filter สร้างใน `SecurityConfig` แบบ `RateLimitFilter` (P-010) ไม่ใช่ bean เพื่อไม่ให้ถูกลงทะเบียนซ้ำ
+  - `POST /me/two-factor/disable` ตอบ `two_factor_mandatory` ระหว่างที่ role ยังบังคับ ส่วน `POST /users/:id/two-factor/reset` ของผู้ดูแลยังทำได้ (มือถือหาย) แล้วเจ้าของบัญชีต้องเปิดใหม่ก่อนทำอย่างอื่น
+  - `twoFactorRoleIds` เป็น `uuid[]` ใน `admin_settings` ซึ่งมี FK ไม่ได้ การลบ role จึงเอา role นั้นออกจากรายการใน transaction เดียวกัน (`settings/service/RoleEventListener`) โดยไม่มี activity `settings.updated` แยก เพราะ `role.deleted` บอกอยู่แล้ว เหมือน local-admin-api.ts
+  - เพิ่ม `ErrorCode.TWO_FACTOR_MANDATORY` (403)
+- Consequences: คนที่ถูกกันใช้ `/api/events` ไม่ได้ด้วย live update ของเขาจึงเริ่มทำงานหลังเปิด two-step sign-in แล้ว รายการ path ที่ยกเว้นอยู่ใน `TwoFactorSetupFilter.SETUP` ถ้า API.md เปลี่ยนรายการนี้ต้องแก้ที่นั่นด้วย ถ้ารันหลาย instance การเปลี่ยน `twoFactorRoleIds` อาจช้าได้ถึง TTL ของ cache (60 วินาที) บน instance อื่น
+
+## P-017 กฎรหัสผ่านอยู่ในการตั้งค่า และมีประวัติรหัสผ่าน (เปลี่ยน P-006)
+
+- Context: P-006 ตั้งความยาวขั้นต่ำตายตัวที่ 8 ตัวผ่าน `access-control.password.min-length` ตอนนี้ API.md ให้ผู้ดูแลตั้งเองในหน้าตั้งค่า: `passwordMinLength` (8–64) และ `passwordHistory` (0–24 คือจำนวนรหัสล่าสุด รวมรหัสปัจจุบัน ที่ห้ามใช้ซ้ำ, 0 ไม่ตรวจ) ใช้กับทุกที่ที่ตั้งรหัส และหน้าที่เปิดจากลิงก์ในอีเมลต้องอ่านกฎได้โดยยังไม่ sign in
+- Decision:
+  - ลบ `access-control.password.min-length` ค่าเริ่มต้นใน settings คือ 8 และ 0 ตาม `DEFAULT_SETTINGS` ใน catalog.ts (`V2__settings_account_rules.sql` มี default และ check constraint) ค่าที่เกินช่วงตอบ `invalid_request` จาก Bean Validation
+  - `PasswordPolicy` เป็น pure function ไม่ใช่ bean: `check(password, minLength)` → `weak_password` และ `recentHashes()` กับ `checkNotReused()` → `password_reused` (422) `CredentialServiceImpl` ใช้ตอน `POST /me/password`, `/auth/activate` และ `/auth/password-reset/confirm` ตามลำดับเดียวกับ local-admin-api.ts: ยาวพอก่อน แล้วจึงไม่ซ้ำ รหัสที่ถูกปฏิเสธทำให้ transaction rollback ลิงก์ในอีเมลจึงยังใช้ได้
+  - ตาราง `previous_passwords` (`V3__previous_passwords.sql`) เก็บ hash Argon2id ของรหัสที่ถูกแทน ทุกครั้งที่ตั้งรหัสใหม่ รหัสปัจจุบันจะย้ายเข้าไป และเก็บไม่เกิน 24 แถวต่อคนไม่ว่า `passwordHistory` ตอนนั้นจะเป็นเท่าไร (ขึ้นค่าทีหลังจึงนับรหัสที่ใช้ไปแล้วด้วย) แถวถูกลบตาม user ด้วย `on delete cascade`
+  - "รหัสล่าสุด N ตัว" คือรหัสปัจจุบัน (ถ้ามี) ตามด้วยประวัติจากใหม่ไปเก่า N ตัวแรก ผู้ดูแลกด reset รหัสของคนอื่น รหัสเดิมย้ายเข้าประวัติก่อนถูกล้าง จึงนับเป็นตัวแรกเมื่อตั้งรหัสใหม่จากลิงก์ เหมือน `checkNewPassword()` ใน local-admin-api.ts
+  - `GET /api/auth/password-policy` → `{ minLength, history }` อยู่ใน `AuthController` ใต้ `/api/auth/**` ที่เปิดอยู่แล้ว ไม่ใส่ rate limit เพราะเป็นการอ่านที่ไม่ได้เดาความลับอะไร
+  - เพิ่ม `ErrorCode.PASSWORD_REUSED` (422)
+- Consequences: ความยาวขั้นต่ำ 8 ตัวของ P-006 เป็นแค่ค่าเริ่มต้น frontend อ่านค่าจริงจาก settings หรือ `/auth/password-policy` แทน `NEW_PASSWORD_LENGTH` การตรวจประวัติเรียก Argon2 `matches` ได้ถึง N ครั้ง (ไม่เกิน 24) ต่อการตั้งรหัสหนึ่งครั้ง ช้ากว่าเดิมแต่เกิดไม่บ่อย การลด `passwordHistory` ไม่ลบประวัติที่เก็บไว้
+
+## P-018 ระยะเก็บ activity อยู่ในการตั้งค่า ผ่าน spi ของ audit
+
+- Context: API.md ย้ายระยะเก็บ activity มาเป็น `activityRetentionDays` (30–3650, ค่าเริ่มต้น 730) ในหน้าตั้งค่า และ `GET /activity` รับ `from`/`to` แต่ audit ฟังแค่ event (R5) จึงเรียก `SettingsService` ไม่ได้ และ audit ฟัง `SettingsUpdated` ของ settings อยู่แล้ว
+- Decision:
+  - audit มี layer `spi` ที่มี `ActivityRetentionProvider` ซึ่ง `SettingsServiceImpl` implement ส่วน `AuditRetentionJob` ถามค่าทุกคืน การเปลี่ยนค่าในหน้าตั้งค่าจึงมีผลตั้งแต่คืนถัดไป ลบ `access-control.audit.retention-days` (เหลือ `list-limit`) และ naming ของ spi รับ suffix `Provider` เพิ่ม
+  - R8: เมื่อ settings implement spi ของ audit ขณะที่ audit ฟัง event ของ settings การแบ่ง slice ตาม module แบบเดิมจะเห็นเป็น cycle `ModuleBoundaryTest` จึงนับ package `spi` ของแต่ละ module เป็น slice แยก เพราะการ implement spi พึ่ง contract ไม่ได้พึ่ง module ที่เรียกมัน ตอน runtime ทิศทางยังเป็น audit → settings ทางเดียว เหมือน `SessionChecker` ของ P-010 ส่วน cycle ที่ผ่านสิ่งที่ package `spi` เองพึ่งยังถูกจับ
+  - `GET /api/activity?from=&to=` รับ ISO 8601 instant (`Z` หรือ offset เช่น `+07:00`) ทั้งสองไม่บังคับ `from` นับรวม `to` ไม่นับ เรียงใหม่ไปเก่า และยังจำกัดที่ `access-control.audit.list-limit` ค่าที่อ่านไม่ได้ตอบ `invalid_request`
+- Consequences: ค่าที่เคยตั้งใน `access-control.audit.retention-days` ถูกข้ามไป installation เดิมได้ 730 วันจาก migration แล้วตั้งใหม่ในหน้าตั้งค่า module อื่นที่อยากให้ audit ถามอะไรก็ทำแบบเดียวกันได้ โดยไม่ทำให้ audit พึ่ง module นั้น

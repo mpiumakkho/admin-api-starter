@@ -27,7 +27,9 @@ roles:
   - { code: VIEWER,        name: Viewer,        is_system: false, source: AppRoles, default_for_new_users: true,
       permissions: ["users.view", "roles.view"] }
 
-# authenticated = any signed-in user; the service applies the finer rules API.md lists
+# authenticated = any signed-in user; the service applies the finer rules API.md lists. Someone whose role is in the
+# settings' twoFactorRoleIds and who has two-step sign-in off gets 403 two_factor_mandatory everywhere except the
+# endpoints marked two_factor_setup: true (TwoFactorSetupFilter, P-016).
 endpoints:
   - { method: POST,   path: "/api/auth/login",                    permission: public }
   - { method: POST,   path: "/api/auth/refresh",                  permission: public (refresh cookie) }
@@ -35,16 +37,18 @@ endpoints:
   - { method: POST,   path: "/api/auth/activate",                 permission: public (email link) }
   - { method: POST,   path: "/api/auth/password-reset/request",   permission: public }
   - { method: POST,   path: "/api/auth/password-reset/confirm",   permission: public (email link) }
-  - { method: GET,    path: "/api/me",                            permission: authenticated }
+  - { method: GET,    path: "/api/auth/password-policy",          permission: public, note: "P-017" }
+  - { method: GET,    path: "/api/me",                            permission: authenticated, two_factor_setup: true }
   - { method: POST,   path: "/api/me/password",                   permission: authenticated }
-  - { method: POST,   path: "/api/me/two-factor",                 permission: authenticated }
-  - { method: POST,   path: "/api/me/two-factor/confirm",         permission: authenticated }
-  - { method: POST,   path: "/api/me/two-factor/disable",         permission: authenticated }
+  - { method: POST,   path: "/api/me/two-factor",                 permission: authenticated, two_factor_setup: true }
+  - { method: POST,   path: "/api/me/two-factor/confirm",         permission: authenticated, two_factor_setup: true }
+  - { method: POST,   path: "/api/me/two-factor/disable",         permission: authenticated, note: "two_factor_mandatory while the role requires it" }
   - { method: GET,    path: "/api/users",                         permission: authenticated, note: "only yourself without users.view" }
   - { method: POST,   path: "/api/users",                         permission: users.create }
   - { method: POST,   path: "/api/users/import",                  permission: users.create }
   - { method: PATCH,  path: "/api/users/{id}",                    permission: authenticated, note: "own name, phone, photo without users.edit" }
   - { method: POST,   path: "/api/users/status",                  permission: users.edit }
+  - { method: POST,   path: "/api/users/role",                    permission: users.edit }
   - { method: POST,   path: "/api/users/delete",                  permission: users.delete }
   - { method: POST,   path: "/api/users/{id}/reset-password",     permission: users.edit }
   - { method: POST,   path: "/api/users/{id}/resend-invite",      permission: users.create }
@@ -52,11 +56,11 @@ endpoints:
   - { method: GET,    path: "/api/users/{id}/sessions",           permission: authenticated, note: "own, or users.edit" }
   - { method: POST,   path: "/api/users/{id}/sessions/end",       permission: authenticated, note: "own, or users.edit" }
   - { method: DELETE, path: "/api/sessions/{id}",                 permission: authenticated, note: "own, or users.edit" }
-  - { method: GET,    path: "/api/roles",                         permission: authenticated }
+  - { method: GET,    path: "/api/roles",                         permission: authenticated, two_factor_setup: true }
   - { method: POST,   path: "/api/roles",                         permission: roles.manage }
   - { method: PATCH,  path: "/api/roles/{id}",                    permission: roles.manage }
   - { method: DELETE, path: "/api/roles/{id}",                    permission: roles.manage }
-  - { method: GET,    path: "/api/activity",                      permission: authenticated, note: "empty without activity.view" }
-  - { method: GET,    path: "/api/settings",                      permission: authenticated }
+  - { method: GET,    path: "/api/activity",                      permission: authenticated, note: "empty without activity.view; optional from, to (ISO 8601)" }
+  - { method: GET,    path: "/api/settings",                      permission: authenticated, two_factor_setup: true }
   - { method: PATCH,  path: "/api/settings",                      permission: settings.manage }
   - { method: GET,    path: "/api/events",                        permission: authenticated }

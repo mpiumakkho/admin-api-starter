@@ -40,6 +40,8 @@ provideUserManagement({ api: HttpAdminApi, apiUrl: '/api', liveUpdates: true }),
 | Refresh cookie | ค่าสุ่ม 256 bit เก็บใน DB เป็น SHA-256 ตั้งเป็น `HttpOnly; SameSite=Strict; Path=/api/auth` และ `Secure` ใน production หมุนใหม่ทุกครั้งที่ refresh ถ้า cookie เก่าถูกใช้ซ้ำเกิน 30 วินาที ถือว่าถูกขโมยและจบ session |
 | ทุก request | ตรวจว่า session ยังเปิดอยู่และบัญชียัง active แล้วจึงดึงสิทธิ์ (cache 60 วินาที โดย evict หลัง commit) การระงับผู้ใช้หรือการจบ session จึงมีผลทันที |
 | ป้องกันการเดา | ใส่รหัสผิด 5 ครั้งติดกันจะถูกล็อก 1 นาที และเพิ่มเป็นสองเท่าทุกครั้งจนถึง 30 นาที endpoint `/api/auth/*` มี rate limit ต่อ IP |
+| กฎรหัสผ่าน | ความยาวขั้นต่ำ (`passwordMinLength`) และจำนวนรหัสล่าสุดที่ห้ามใช้ซ้ำ (`passwordHistory`) มาจากหน้าตั้งค่า ใช้กับทุกที่ที่ตั้งรหัส ใครก็อ่านได้ที่ `GET /api/auth/password-policy` (P-017) |
+| Two-step sign-in ตาม role | role ใน `twoFactorRoleIds` ของหน้าตั้งค่าต้องเปิด two-step sign-in ก่อน ระหว่างนั้นทุก request ตอบ 403 `two_factor_mandatory` ยกเว้นสิ่งที่ใช้เปิดมัน (P-016) |
 
 ## Config ที่ต้องตั้งใน production (`--spring.profiles.active=prod`)
 
@@ -52,7 +54,7 @@ provideUserManagement({ api: HttpAdminApi, apiUrl: '/api', liveUpdates: true }),
 | `AC_DASHBOARD_URL`, `AC_MAIL_FROM`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` | ลิงก์ในอีเมลและ SMTP |
 | `ACCESS_CONTROL_BOOTSTRAP_ADMIN_EMAIL`, `ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD` | ผู้ดูแลคนแรก (ใช้เฉพาะตอนที่ยังไม่มีผู้ใช้เลย) |
 
-ค่าอื่น ๆ (อายุ token, lockout, rate limit, retention ของ activity) อยู่ใน `AccessControlProperties`
+ค่าอื่น ๆ (อายุ token, lockout, rate limit, จำนวน activity สูงสุดที่ตอบ) อยู่ใน `AccessControlProperties` ส่วนกฎของบัญชี (ความยาวและประวัติรหัสผ่าน, role ที่ต้องใช้ two-step sign-in, ระยะเก็บ activity) ตั้งในหน้าตั้งค่า (`PATCH /api/settings`) ไม่ใช่ config (P-016–P-018)
 
 ## คำสั่ง
 

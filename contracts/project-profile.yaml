@@ -82,10 +82,12 @@ security_defaults:
   refresh_cookie_path: /api/auth               # P-004
   password_hash: argon2id
   secret_encryption: aes-256-gcm   # P-014: TOTP secrets at rest, key from AC_ENCRYPTION_PASSWORD + AC_ENCRYPTION_SALT
-  password_min_length: 8              # P-006
+  password_min_length: settings       # P-017: AdminSettings.passwordMinLength, 8 to 64, default 8 (was fixed at 8, P-006)
+  password_history: settings          # P-017: AdminSettings.passwordHistory, 0 to 24, default 0; 24 kept per user
+  two_factor_by_role: settings        # P-016: AdminSettings.twoFactorRoleIds
   lockout_max_attempts: 5
   permission_cache_ttl: 60s
-  audit_retention_days: 730
+  audit_retention_days: settings      # P-018: AdminSettings.activityRetentionDays, 30 to 3650, default 730
 
 documentation:
   language: th
