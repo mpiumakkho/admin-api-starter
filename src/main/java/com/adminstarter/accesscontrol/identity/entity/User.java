@@ -61,6 +61,11 @@ public class User {
         this.updatedAt = now;
     }
 
+    public void changeRole(UUID roleId, Instant now) {
+        this.roleId = roleId;
+        this.updatedAt = now;
+    }
+
     public void signedIn(Instant now) {
         this.lastActiveAt = now;
     }

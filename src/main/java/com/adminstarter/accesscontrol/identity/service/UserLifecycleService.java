@@ -10,6 +10,7 @@ import com.adminstarter.accesscontrol.common.dto.FieldChange;
 import com.adminstarter.accesscontrol.identity.dto.CreateUserRequest;
 import com.adminstarter.accesscontrol.identity.dto.DeleteUsersRequest;
 import com.adminstarter.accesscontrol.identity.dto.ImportUsersRequest;
+import com.adminstarter.accesscontrol.identity.dto.SetUserRoleRequest;
 import com.adminstarter.accesscontrol.identity.dto.SetUserStatusRequest;
 import com.adminstarter.accesscontrol.identity.dto.UpdateUserRequest;
 import com.adminstarter.accesscontrol.identity.dto.UserResponse;
@@ -146,6 +147,29 @@ public class UserLifecycleService {
             if (status == UserStatus.SUSPENDED) {
                 events.publishEvent(new UserSuspended(user.getId()));
             }
+            changed.add(respond(user));
+        }
+        return changed;
+    }
+
+    /**
+     * Gives several people the same role; answers with the ones whose role changed. Nobody changes their own role,
+     * assigns a role that grants more than they hold, or changes someone they may not manage (API.md, rules 2 to 4).
+     */
+    @CacheEvict(cacheNames = UserServiceImpl.ACCOUNTS_CACHE, allEntries = true)
+    public List<UserResponse> setRole(Actor actor, SetUserRoleRequest request) {
+        SelfProtectionPolicy.forbidSelf(actor, request.ids());
+        roles.requireAssignable(actor, request.roleId());
+        var targets = request.ids().stream().distinct().map(id -> access.findManageable(actor, id)).toList();
+        var changed = new ArrayList<UserResponse>();
+        for (var user : targets) {
+            if (user.getRoleId().equals(request.roleId())) {
+                continue;
+            }
+            var from = user.getRoleId();
+            user.changeRole(request.roleId(), now());
+            events.publishEvent(new UserUpdated(actor.userId(), user.getId(), user.getFullName(),
+                    List.of(FieldChange.of("roleId", from.toString(), request.roleId().toString()))));
             changed.add(respond(user));
         }
         return changed;
