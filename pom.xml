@@ -88,7 +88,7 @@
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
+            <!-- Compile scope: ChangeNotificationListener uses PGConnection to hear LISTEN/NOTIFY -->
         </dependency>
 
         <dependency>

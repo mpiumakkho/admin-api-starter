@@ -64,7 +64,7 @@
 ## P-007 Module เพิ่ม: `settings` และ `liveupdate`
 
 - Decision: `settings` เก็บ `AdminSettings` (หนึ่งแถว) ส่วน `liveupdate` ถือ SSE stream ไว้ใน memory และได้ยินการเปลี่ยนแปลงผ่าน `ActivityRecorded` ของ audit อย่างเดียว เพราะทุกการเปลี่ยนแปลงมี activity
-- Consequences: ถ้ารันหลาย instance stream จะได้ยินเฉพาะการเปลี่ยนแปลงที่เกิดบน instance เดียวกัน ก่อน scale out ต้องส่งต่อผ่าน `LISTEN/NOTIFY` ของ PostgreSQL หรือ broker
+- Consequences: ถ้ารันหลาย instance stream จะได้ยินเฉพาะการเปลี่ยนแปลงที่เกิดบน instance เดียวกัน ก่อน scale out ต้องส่งต่อผ่าน `LISTEN/NOTIFY` ของ PostgreSQL หรือ broker (ทำแล้วใน P-015)
 
 ## P-008 Two-step sign-in (TOTP) อยู่ใน identity
 
@@ -107,4 +107,10 @@
 - Context: P-008 เก็บ secret ของ two-step sign-in ไว้แบบไม่เข้ารหัส ใครที่ได้สำเนา DB หรือ backup ไปจึงสร้างรหัส 6 หลักแทนเจ้าของได้
 - Decision: คอลัมน์ `two_factor_secret` และ `pending_two_factor_secret` ผ่าน `EncryptedSecretConverter` (JPA `AttributeConverter`) ซึ่งเข้ารหัสด้วย `TextEncryptor` ของ Spring Security (`Encryptors.delux`: AES-256-GCM, IV สุ่มใหม่ทุกครั้ง, key derive จาก `access-control.encryption.password` + `salt`) ค่าในคอลัมน์ขึ้นต้นด้วย `enc:v1:` เพื่อให้เปลี่ยนวิธีเข้ารหัสได้ภายหลัง ส่วนค่าที่ไม่มี prefix (เขียนไว้ก่อนมีการเข้ารหัส) อ่านได้ตามเดิมและจะถูกเข้ารหัสเมื่อบันทึกครั้งถัดไป ถ้าไม่ได้ตั้ง key แอปจะไม่ start (`EncryptionConfig`)
 - Consequences: key ต้องเก็บไว้ตลอด ถ้าเปลี่ยนหรือหาย secret ที่เก็บไว้จะอ่านไม่ได้ และทุกคนที่เปิด two-step sign-in ไว้ต้องให้ผู้ดูแลกด reset ให้ ตอนพัฒนาใช้ key ใน `application.yml` ส่วน production ใช้ `AC_ENCRYPTION_PASSWORD` และ `AC_ENCRYPTION_SALT` (`tools/gen-keys.sh` สร้างให้)
+
+## P-015 Live update ข้ามหลาย instance ผ่าน `LISTEN/NOTIFY` (ต่อจาก P-007)
+
+- Context: P-007 เก็บ SSE stream ไว้ใน memory ของแต่ละ instance ถ้ารันหลายตัว การเปลี่ยนแปลงบนตัวหนึ่งจะไม่ไปถึง dashboard ที่ต่ออยู่กับตัวอื่น
+- Decision: ทุกครั้งที่มี `ActivityRecorded` liveupdate จะสั่ง `NOTIFY admin_changes` ใน transaction ของการเปลี่ยนแปลงนั้น PostgreSQL ส่งออกไปตอน commit, ทิ้งไปถ้า rollback และรวม `NOTIFY` ที่ซ้ำกันใน transaction เดียวเป็นอันเดียว ส่วน `ChangeNotificationListener` ของทุก instance (รวมถึงตัวที่เกิดการเปลี่ยนแปลง) `LISTEN` อยู่บน connection ของตัวเองใน virtual thread แล้วส่ง `data: changed` ไปยัง stream ที่เปิดอยู่ ถ้า connection หลุดก็ต่อใหม่ โดยรอนานขึ้นเรื่อย ๆ และเมื่อต่อได้แล้ว จะส่ง `changed` หนึ่งครั้งเผื่อมีการเปลี่ยนแปลงที่พลาดไปช่วงนั้น ไม่ต้องใช้ Redis หรือ broker เพิ่ม
+- Consequences: แต่ละ instance ใช้ connection ใน pool ถาวรหนึ่งเส้น และ driver ของ PostgreSQL กลายเป็น dependency ตอน compile (ใช้ `PGConnection`) ถ้าจะรันหลาย instance ทุกตัวต้องใช้ `access-control.token.keys` และ `access-control.encryption` ชุดเดียวกัน ไม่อย่างนั้น token จากตัวหนึ่งจะใช้กับอีกตัวไม่ได้ ส่วน rate limit กับ cache ของสิทธิ์ยังนับแยกต่อ instance (cache มี TTL 60 วินาที)
 

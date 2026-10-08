@@ -63,6 +63,9 @@ provideUserManagement({ api: HttpAdminApi, apiUrl: '/api', liveUpdates: true }),
 | `python .claude/skills/access-control-project-bootstrapper/scripts/check_structure.py --repo . --side backend` | ตรวจโครงสร้างตาม `contracts/structure.yaml` (รันบน checkout ที่สะอาด ไม่มี `target/`) |
 | `docker build -f docker/Dockerfile -t admin-api-starter .` | image สำหรับ deploy |
 
-## ยังไม่ได้ทำ
+## รันหลาย instance
 
-- SSE แบบหลาย instance (ดู P-007)
+ทำได้เลย เพราะ session, refresh token และ activity อยู่ใน PostgreSQL ส่วน live update ส่งต่อกันผ่าน `LISTEN/NOTIFY` (P-015) มีเงื่อนไขอยู่สองข้อ:
+
+- ทุก instance ต้องใช้ `AC_JWT_*` และ `AC_ENCRYPTION_*` ชุดเดียวกัน
+- rate limit กับ cache ของสิทธิ์ (60 วินาที) นับแยกต่อ instance

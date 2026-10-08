@@ -51,7 +51,7 @@ backend:
     - com.bucket4j:bucket4j_jdk17-core   # the template's bucket4j-core, under its current artifact id
     - org.bouncycastle:bcprov-jdk18on    # Argon2id
     - org.flywaydb:flyway-database-postgresql
-    - org.postgresql:postgresql
+    - org.postgresql:postgresql         # compile scope: LISTEN/NOTIFY for live updates (P-015)
   test_starters_required:
     - spring-boot-starter-webmvc-test
     - spring-boot-starter-security-test
