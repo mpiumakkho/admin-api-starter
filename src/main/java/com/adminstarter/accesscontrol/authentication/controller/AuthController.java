@@ -9,11 +9,14 @@ import com.adminstarter.accesscontrol.authentication.service.LoginService;
 import com.adminstarter.accesscontrol.authentication.service.RefreshCookieSupport;
 import com.adminstarter.accesscontrol.common.error.ApiExceptionHandler;
 import com.adminstarter.accesscontrol.common.exception.AccessControlException;
+import com.adminstarter.accesscontrol.settings.dto.PasswordPolicyResponse;
+import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,11 +34,14 @@ public class AuthController {
     private final LoginService login;
     private final ActionTokenService actionTokens;
     private final RefreshCookieSupport cookies;
+    private final SettingsService settings;
 
-    public AuthController(LoginService login, ActionTokenService actionTokens, RefreshCookieSupport cookies) {
+    public AuthController(LoginService login, ActionTokenService actionTokens, RefreshCookieSupport cookies,
+            SettingsService settings) {
         this.login = login;
         this.actionTokens = actionTokens;
         this.cookies = cookies;
+        this.settings = settings;
     }
 
     @PostMapping("/login")
@@ -81,6 +87,12 @@ public class AuthController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void confirmPasswordReset(@Valid @RequestBody EmailLinkRequest request) {
         actionTokens.confirmPasswordReset(request.token(), request.password());
+    }
+
+    /** The password rules, so the pages for the links in emails can show them before anyone signs in */
+    @GetMapping("/password-policy")
+    public PasswordPolicyResponse passwordPolicy() {
+        return settings.passwordPolicy();
     }
 
     private ResponseEntity<TokenResponse> answer(LoginService.SignIn signIn) {

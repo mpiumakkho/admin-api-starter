@@ -1,5 +1,6 @@
 package com.adminstarter.accesscontrol.settings.service;
 
+import com.adminstarter.accesscontrol.settings.dto.PasswordPolicyResponse;
 import com.adminstarter.accesscontrol.settings.dto.SettingsResponse;
 import java.util.UUID;
 
@@ -13,4 +14,7 @@ public interface SettingsService {
      * on every request: cached, evicted after commit whenever the settings change.
      */
     boolean requiresTwoFactor(UUID roleId);
+
+    /** The password rules (P-017), which anyone may read, signed in or not: GET /api/auth/password-policy */
+    PasswordPolicyResponse passwordPolicy();
 }

@@ -3,14 +3,18 @@ package com.adminstarter.accesscontrol.identity.service;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.INVALID_CREDENTIALS;
 
 import com.adminstarter.accesscontrol.common.context.Actor;
+import com.adminstarter.accesscontrol.identity.entity.PreviousPassword;
 import com.adminstarter.accesscontrol.identity.entity.UserCredential;
 import com.adminstarter.accesscontrol.identity.event.UserPasswordChanged;
 import com.adminstarter.accesscontrol.identity.policy.LockoutPolicy;
 import com.adminstarter.accesscontrol.identity.policy.PasswordPolicy;
+import com.adminstarter.accesscontrol.identity.repository.PreviousPasswordRepository;
 import com.adminstarter.accesscontrol.identity.repository.UserCredentialRepository;
+import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,9 +27,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class CredentialServiceImpl implements CredentialService {
 
     private final UserCredentialRepository credentials;
+    private final PreviousPasswordRepository previousPasswords;
     private final UserAccessService access;
+    private final SettingsService settings;
     private final PasswordEncoder encoder;
-    private final PasswordPolicy passwordPolicy;
     private final LockoutPolicy lockoutPolicy;
     private final TotpService totp;
     private final ApplicationEventPublisher events;
@@ -33,13 +38,14 @@ public class CredentialServiceImpl implements CredentialService {
     /** Checked against when there is no real hash, to spend the same time */
     private final String decoyHash;
 
-    public CredentialServiceImpl(UserCredentialRepository credentials, UserAccessService access, PasswordEncoder encoder,
-            PasswordPolicy passwordPolicy, LockoutPolicy lockoutPolicy, TotpService totp,
-            ApplicationEventPublisher events, Clock clock) {
+    public CredentialServiceImpl(UserCredentialRepository credentials, PreviousPasswordRepository previousPasswords,
+            UserAccessService access, SettingsService settings, PasswordEncoder encoder, LockoutPolicy lockoutPolicy,
+            TotpService totp, ApplicationEventPublisher events, Clock clock) {
         this.credentials = credentials;
+        this.previousPasswords = previousPasswords;
         this.access = access;
+        this.settings = settings;
         this.encoder = encoder;
-        this.passwordPolicy = passwordPolicy;
         this.lockoutPolicy = lockoutPolicy;
         this.totp = totp;
         this.events = events;
@@ -85,8 +91,7 @@ public class CredentialServiceImpl implements CredentialService {
 
     @Override
     public void setPassword(UUID userId, String password) {
-        passwordPolicy.check(password);
-        load(userId).changePassword(encoder.encode(password), now());
+        replacePassword(load(userId), password);
         events.publishEvent(new UserPasswordChanged(userId, access.find(userId).getFullName(), null));
     }
 
@@ -97,15 +102,19 @@ public class CredentialServiceImpl implements CredentialService {
         if (hash == null || !encoder.matches(currentPassword, hash)) {
             throw INVALID_CREDENTIALS.exception();
         }
-        passwordPolicy.check(newPassword);
-        credential.changePassword(encoder.encode(newPassword), now());
+        replacePassword(credential, newPassword);
         var fullName = access.find(actor.userId()).getFullName();
         events.publishEvent(new UserPasswordChanged(actor.userId(), fullName, actor.sessionId()));
     }
 
-    /** An administrator reset it: the old password stops working until the user sets a new one from the email */
+    /**
+     * An administrator reset it: the old password stops working until the user sets a new one from the email. It
+     * stays in their history, so the new one cannot be the same (API.md, "Password rules").
+     */
     void clearPassword(UUID userId) {
-        load(userId).clearPassword();
+        var credential = load(userId);
+        keepInHistory(credential, previousPasswords.findByUserIdOrderByCreatedAtDescIdDesc(userId));
+        credential.clearPassword();
     }
 
     /** A user created on the dashboard has no password until they accept the invitation or reset it */
@@ -115,6 +124,34 @@ public class CredentialServiceImpl implements CredentialService {
             credential.changePassword(encoder.encode(password), now());
         }
         credentials.save(credential);
+    }
+
+    /**
+     * The password rules of the settings (weak_password, password_reused), then the new password; the one it
+     * replaces goes into the history.
+     */
+    private void replacePassword(UserCredential credential, String password) {
+        var rules = settings.current();
+        PasswordPolicy.check(password, rules.passwordMinLength());
+        var earlier = previousPasswords.findByUserIdOrderByCreatedAtDescIdDesc(credential.getUserId());
+        var recent = PasswordPolicy.recentHashes(credential.getPasswordHash(),
+                earlier.stream().map(PreviousPassword::getPasswordHash).toList(), rules.passwordHistory());
+        PasswordPolicy.checkNotReused(password, recent, encoder::matches);
+        keepInHistory(credential, earlier);
+        credential.changePassword(encoder.encode(password), now());
+    }
+
+    /**
+     * Moves the current password, if there is one, into the history, dropping the oldest beyond PasswordPolicy.KEPT.
+     * Kept whatever passwordHistory is now, so raising it later counts the passwords used meanwhile.
+     */
+    private void keepInHistory(UserCredential credential, List<PreviousPassword> earlier) {
+        var hash = credential.getPasswordHash();
+        if (hash == null) {
+            return;
+        }
+        previousPasswords.deleteAll(PasswordPolicy.beyondKept(earlier));
+        previousPasswords.save(new PreviousPassword(credential.getUserId(), hash, now()));
     }
 
     private void failed(UserCredential credential) {
