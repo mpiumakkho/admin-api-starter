@@ -20,6 +20,9 @@ public class SettingsInitializer implements ApplicationRunner {
 
     private static final int INVITE_EXPIRY_DAYS = 7;
     private static final int SESSION_TIMEOUT_MINUTES = 0;
+    private static final int PASSWORD_MIN_LENGTH = 8;
+    private static final int PASSWORD_HISTORY = 0;
+    private static final int ACTIVITY_RETENTION_DAYS = 730;
 
     private final AdminSettingsRepository settings;
     private final RoleService roles;
@@ -43,7 +46,8 @@ public class SettingsInitializer implements ApplicationRunner {
         var code = properties.bootstrap().defaultRole();
         var defaultRole = roles.findIdByCode(code)
                 .orElseThrow(() -> new IllegalStateException("access-control.bootstrap.default-role names no role: " + code));
-        settings.save(new AdminSettings(defaultRole, List.of(), INVITE_EXPIRY_DAYS, SESSION_TIMEOUT_MINUTES,
+        settings.save(new AdminSettings(defaultRole, List.of(), INVITE_EXPIRY_DAYS, SESSION_TIMEOUT_MINUTES, List.of(),
+                PASSWORD_MIN_LENGTH, PASSWORD_HISTORY, ACTIVITY_RETENTION_DAYS,
                 clock.instant().truncatedTo(ChronoUnit.MILLIS)));
     }
 }
