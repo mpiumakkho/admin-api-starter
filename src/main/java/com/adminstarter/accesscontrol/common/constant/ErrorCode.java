@@ -17,6 +17,8 @@ public enum ErrorCode {
     SELF_CHANGE(HttpStatus.FORBIDDEN),
     ACCOUNT_SUSPENDED(HttpStatus.FORBIDDEN),
     INVITE_PENDING(HttpStatus.FORBIDDEN),
+    /** The role requires two-step sign-in (the settings' twoFactorRoleIds) and it is off (P-016) */
+    TWO_FACTOR_MANDATORY(HttpStatus.FORBIDDEN),
     NOT_FOUND(HttpStatus.NOT_FOUND),
     INVALID_REQUEST(HttpStatus.BAD_REQUEST),
     INVALID_TOKEN(HttpStatus.BAD_REQUEST),

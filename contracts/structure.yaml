@@ -42,7 +42,7 @@ backend:
               EncryptionConfig.java]
     security:
       files: [PermissionAuthenticationConverter.java, ActorAuthentication.java, SessionChecker.java,
-              RequestContextFilter.java, RateLimitFilter.java, SecurityProblemHandler.java]
+              RequestContextFilter.java, RateLimitFilter.java, SecurityProblemHandler.java, TwoFactorSetupFilter.java]
       subfolders:
         jwt: [JwtIssuer.java, JwtKeyProvider.java]
     common:

@@ -1,10 +1,6 @@
 package com.adminstarter.accesscontrol.settings.service;
 
 import com.adminstarter.accesscontrol.authorization.event.RoleDeleted;
-import com.adminstarter.accesscontrol.settings.entity.AdminSettings;
-import com.adminstarter.accesscontrol.settings.repository.AdminSettingsRepository;
-import java.time.Clock;
-import java.time.temporal.ChronoUnit;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
@@ -16,17 +12,14 @@ import org.springframework.stereotype.Service;
 @Service
 public class RoleEventListener {
 
-    private final AdminSettingsRepository settings;
-    private final Clock clock;
+    private final SettingsServiceImpl settings;
 
-    public RoleEventListener(AdminSettingsRepository settings, Clock clock) {
+    public RoleEventListener(SettingsServiceImpl settings) {
         this.settings = settings;
-        this.clock = clock;
     }
 
     @EventListener
     void on(RoleDeleted event) {
-        settings.findById(AdminSettings.ID)
-                .ifPresent(current -> current.removeTwoFactorRole(event.roleId(), clock.instant().truncatedTo(ChronoUnit.MILLIS)));
+        settings.forgetRole(event.roleId());
     }
 }

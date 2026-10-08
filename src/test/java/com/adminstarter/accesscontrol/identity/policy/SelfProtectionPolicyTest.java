@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 class SelfProtectionPolicyTest {
 
-    private final Actor actor = new Actor(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), Set.of("users.view"));
+    private final Actor actor = new Actor(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), Set.of("users.view"), false);
     private final UUID someoneElse = UUID.randomUUID();
 
     @Test

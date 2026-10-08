@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class SettingsServiceImpl implements SettingsService {
+
+    /** requiresTwoFactor; evicted, after commit, whenever twoFactorRoleIds may have changed */
+    static final String TWO_FACTOR_ROLES_CACHE = "two-factor-roles";
 
     private final AdminSettingsRepository settings;
     private final RoleService roles;
@@ -44,6 +49,14 @@ public class SettingsServiceImpl implements SettingsService {
         return toResponse(load());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(cacheNames = TWO_FACTOR_ROLES_CACHE)
+    public boolean requiresTwoFactor(UUID roleId) {
+        return load().getTwoFactorRoleIds().contains(roleId);
+    }
+
+    @CacheEvict(cacheNames = TWO_FACTOR_ROLES_CACHE, allEntries = true)
     public SettingsResponse update(Actor actor, UpdateSettingsRequest request) {
         var current = load();
         if (request.defaultRoleId() != null) {
@@ -82,6 +95,12 @@ public class SettingsServiceImpl implements SettingsService {
             events.publishEvent(new SettingsUpdated(actor.userId(), List.copyOf(changes)));
         }
         return toResponse(current);
+    }
+
+    /** A deleted role requires nothing any more: it comes off twoFactorRoleIds */
+    @CacheEvict(cacheNames = TWO_FACTOR_ROLES_CACHE, allEntries = true)
+    public void forgetRole(UUID roleId) {
+        load().removeTwoFactorRole(roleId, clock.instant().truncatedTo(ChronoUnit.MILLIS));
     }
 
     private AdminSettings load() {
