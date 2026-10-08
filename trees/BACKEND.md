@@ -83,7 +83,7 @@ admin-api-starter/
 | `settings/` | controller, service, repository, entity, dto, event | `SettingsService`, `dto/*`, `event/*` | `AdminSettings`; `SettingsController` (`/api/settings`) |
 | `audit/` | controller, service, repository, entity, dto, event | `event/ActivityRecorded` | ฟัง event ของทุก module แล้วเขียน `audit_logs` ใน transaction เดียวกัน; `ActivityController` (`/api/activity`) |
 | `notification/` | service | `NotificationService` | อีเมลเชิญและรีเซ็ตรหัสผ่าน (Thymeleaf, `@Async`, หลัง commit) |
-| `liveupdate/` | controller, service | — | SSE `/api/events`, รวมการเปลี่ยนแปลงที่เกิดติด ๆ กันเป็นข้อความเดียว |
+| `liveupdate/` | controller, service | — | SSE `/api/events` ส่ง `NOTIFY admin_changes` ใน transaction ของการเปลี่ยนแปลง แล้ว `ChangeNotificationListener` ของทุก instance ได้ยินและส่งต่อให้ stream โดยรวมการเปลี่ยนแปลงที่เกิดติด ๆ กันเป็นข้อความเดียว (P-015) |
 
 `identity/entity/EncryptedSecretConverter` เข้ารหัสคอลัมน์ TOTP secret ของ `UserCredential` ตอนบันทึก และถอดรหัสตอนอ่าน (P-014)
 

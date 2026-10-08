@@ -8,10 +8,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.springframework.context.event.EventListener;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
@@ -19,20 +20,25 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * {@code data: changed} and the dashboards load their data again. Changes close together, such as deleting fifty
  * users at once, are sent as one message. A comment every 25 seconds keeps proxies from closing idle streams.
  *
- * <p>Streams live in this instance's memory: with several instances, a change made on one is only heard by the
- * streams open on it. Relay the event through the database (LISTEN/NOTIFY) or a broker before scaling out.
+ * <p>A change reaches the streams of every server instance through PostgreSQL (P-015): the transaction that makes it
+ * sends {@code NOTIFY admin_changes}, which the database delivers when that transaction commits and drops if it rolls
+ * back, and ChangeNotificationListener on each instance hears it and calls {@link #changed()}.
  */
 @Service
 public class ChangeStreamService {
 
+    /** The PostgreSQL channel every instance listens on */
+    static final String CHANNEL = "admin_changes";
     private static final Duration COALESCE = Duration.ofMillis(250);
 
     private final Set<SseEmitter> streams = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean pending = new AtomicBoolean();
     private final TaskScheduler scheduler;
+    private final JdbcTemplate jdbc;
 
-    public ChangeStreamService(TaskScheduler scheduler) {
+    public ChangeStreamService(TaskScheduler scheduler, JdbcTemplate jdbc) {
         this.scheduler = scheduler;
+        this.jdbc = jdbc;
     }
 
     /** A stream that closes by itself after {@code lifetime}, when the token that opened it runs out */
@@ -47,8 +53,17 @@ public class ChangeStreamService {
         return stream;
     }
 
-    @TransactionalEventListener
+    /**
+     * Runs in the transaction of the change, on its connection: the notification goes out with the commit. PostgreSQL
+     * folds the same notification sent several times in one transaction into one.
+     */
+    @EventListener
     void on(ActivityRecorded event) {
+        jdbc.execute("NOTIFY " + CHANNEL);
+    }
+
+    /** Something changed, on this instance or another: tells every open stream, once for changes close together */
+    public void changed() {
         if (pending.compareAndSet(false, true)) {
             scheduler.schedule(this::broadcast, Instant.now().plus(COALESCE));
         }
