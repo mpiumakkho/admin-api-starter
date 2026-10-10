@@ -13,6 +13,7 @@ admin-api-starter/
 ├── README.md  AGENTS.md  CLAUDE.md  UPGRADING.md
 ├── .gitignore  .editorconfig
 ├── docs/02-DECISIONS.md     # ADR ของ template ที่ใช้ + ADR ของโปรเจกต์ (P-xxx)
+├── docs/API-COVERAGE.md     # endpoint ของ API.md ที่ server นี้ทำแล้ว สิทธิ์ และ test ที่เรียก (สร้างด้วย tools/api-coverage.py)
 ├── trees/BACKEND.md         # ไฟล์นี้
 ├── contracts/*.yaml         # structure, profile, dependency rules, naming, permissions
 ├── .claude/skills/access-control-project-bootstrapper/   # check_structure.py, scaffold.py
@@ -21,7 +22,8 @@ admin-api-starter/
 │   └── Dockerfile           # eclipse-temurin:25-jdk → 25-jre
 ├── tools/
 │   ├── gen-keys.sh          # คู่ key RS256 สำหรับ access-control.token.keys
-│   └── new-module.sh        # โครง module ใหม่ใต้ app/
+│   ├── new-module.sh        # โครง module ใหม่ใต้ app/
+│   └── api-coverage.py      # เทียบ API.md กับ controller แล้วเขียน docs/API-COVERAGE.md (--check เพื่อตรวจอย่างเดียว)
 ├── .github/workflows/ci.yml
 └── src/
 ```

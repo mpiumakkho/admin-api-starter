@@ -2,6 +2,7 @@
 
 Backend ของ [admin-ng-starter](../admin-ng-starter) สำหรับจัดการผู้ใช้ บทบาท สิทธิ์ การเข้าสู่ระบบ (JWT + 2FA) ประวัติการใช้งาน และการตั้งค่า ทำครบทุก endpoint ใน [`API.md`](../admin-ng-starter/src/app/user-management/API.md) ที่หน้าจอใช้
 
+- **สัญญา API:** [`API.md`](https://github.com/mpiumakkho/admin-ng-starter/blob/main/src/app/user-management/API.md) ใน admin-ng-starter (ในเครื่อง: [`../admin-ng-starter/src/app/user-management/API.md`](../admin-ng-starter/src/app/user-management/API.md)) ส่วน endpoint ไหนของสัญญาที่ server นี้ทำแล้ว ตรวจสิทธิ์อะไร และมี test ไหนเรียก ดูที่ [docs/API-COVERAGE.md](docs/API-COVERAGE.md)
 - **Stack:** Java 25, Spring Boot 4.1, Spring Security 7 (OAuth2 resource server + Nimbus), Spring Data JPA (Hibernate 7), PostgreSQL 17, Flyway, Caffeine, Bucket4j, Argon2id, Thymeleaf (อีเมล), ArchUnit, Testcontainers
 - **Template:** access-control (`accessbase-docs`, schema_version 1) org `adminstarter` ส่วนที่ต่างจาก template มี ADR อยู่ใน [docs/02-DECISIONS.md](docs/02-DECISIONS.md)
 - **โครงสร้าง:** [trees/BACKEND.md](trees/BACKEND.md)

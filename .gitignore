@@ -8,3 +8,8 @@ target/
 keys/
 node_modules/
 .DS_Store
+
+# Personal notes, not part of the project; the project's own documents in docs/ are listed below
+/docs/*
+!/docs/02-DECISIONS.md
+!/docs/API-COVERAGE.md

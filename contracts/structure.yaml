@@ -91,11 +91,13 @@ backend:
     - UPGRADING.md
     - .gitignore
     - docs/02-DECISIONS.md
+    - docs/API-COVERAGE.md
     - trees/BACKEND.md
     - docker/docker-compose.yml
     - docker/Dockerfile
     - tools/gen-keys.sh
     - tools/new-module.sh
+    - tools/api-coverage.py
     - .github/workflows/ci.yml
   # Must never be committed; run the check on a clean checkout (CI does)
   repo_root_forbidden: [target, .idea, node_modules, "*.iml"]

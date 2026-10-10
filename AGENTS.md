@@ -16,7 +16,7 @@ Architecture motto: **Design like microservices, build like modular monolith.**
 4. **`audit` listens to events only;** `liveupdate` hears about changes only through `audit.event.ActivityRecorded`.
 5. **Authorization is permission-based:** `@PreAuthorize("hasAuthority('users.edit')")` on every controller method (`isAuthenticated()` at least), never role names. Finer rules (API.md, "Rules the server must check") live in `policy/` and services, not controllers.
 6. **Permissions are declared in code** (`PermissionCatalog`, `RoleTemplate`) and must match `catalog.ts` in admin-ng-starter.
-7. **The API contract is API.md.** Changing a path, a field or an error code means changing API.md, `HttpAdminApi`, `localBackend` and this server together.
+7. **The API contract is API.md.** Changing a path, a field or an error code means changing API.md, `HttpAdminApi`, `localBackend` and this server together, then running `python tools/api-coverage.py` and committing `docs/API-COVERAGE.md` with the change.
 8. **`@Transactional` only in `service/`.** Every change publishes an event; `AuditListener` writes the activity entry in the same transaction.
 9. **No dumping grounds:** no `util/`, `helper/`, `*Utils`, `*Helper`.
 10. **Never invent structure.** New paths must fit `contracts/structure.yaml`; run the structure check and `./mvnw verify` before finishing. Versions are fixed in `contracts/project-profile.yaml`; changing one needs an ADR in `docs/02-DECISIONS.md`.
