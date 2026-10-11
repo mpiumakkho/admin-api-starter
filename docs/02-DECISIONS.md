@@ -9,7 +9,7 @@
 | ADR | เรื่อง | สถานะในโปรเจกต์นี้ |
 |---|---|---|
 | 0001 | Authentication ทำเองบน Spring Security + JWT (ไม่ใช้ Keycloak) | ใช้ |
-| 0002 | Permission model: Role → Permission, โค้ดเช็ค permission ไม่เช็ค role | ใช้ แต่รูปแบบ code เปลี่ยนตาม P-002 และหนึ่ง user มีหนึ่ง role ตาม P-003 |
+| 0002 | Permission model: Role → Permission, โค้ดเช็ค permission ไม่เช็ค role | ใช้ แต่รูปแบบ code เปลี่ยนตาม P-002 และหนึ่ง user มีได้หลาย role ตาม P-019 |
 | 0003 | Token: access JWT 15 นาที + refresh cookie แบบ opaque หมุนทุกครั้ง, stateless, permission resolve จาก DB + cache | ใช้ พร้อมส่วนเพิ่มใน P-004 |
 | 0004 | Enforcement ที่ method (`@PreAuthorize`), กฎป้องกันตัวเองอยู่ใน `policy/` | ใช้ |
 | 0005 | Modular monolith, module-first + layer เดิม, ArchUnit คุม boundary | ใช้ |
@@ -33,6 +33,7 @@
 
 ## P-003 หนึ่ง user มีหนึ่ง role
 
+- Status: ถูกแทนที่โดย P-019
 - Context: model ของ frontend คือ `User.roleId` ตัวเดียว ทั้งหน้าจอและกฎ "ห้ามให้สิทธิ์เกินกว่าที่ตัวเองมี" คิดจาก role เดียว
 - Decision: `users.role_id` (FK → `roles`) แทนตาราง `user_roles` ไม่มี role ชั่วคราวหรือ `expires_at` และไม่มี `roles_version` เพราะสิทธิ์ resolve ใหม่ทุก request (cache 60 วินาที โดย evict หลัง commit ทุกครั้งที่ user หรือ role เปลี่ยน)
 - Consequences: ถ้าวันหนึ่งต้องการหลาย role ต่อคน ต้องเปลี่ยนทั้ง frontend model และกฎใน access-rules.ts ด้วย
@@ -146,3 +147,17 @@
   - ตัวเชื่อมอยู่ใน `config` ไม่ใช่ใน settings: audit ฟัง event ของ settings อยู่แล้ว ถ้า settings implement spi ของ audit จะเกิด cycle ระหว่างสอง module (R8) ส่วน `config` พึ่งได้ทั้งสองฝั่งโดยไม่มีใครพึ่งกลับ R8 จึงไม่ต้องเปลี่ยน
   - `GET /api/activity?from=&to=` รับ ISO 8601 instant (`Z` หรือ offset เช่น `+07:00`) ทั้งสองไม่บังคับ `from` นับรวม `to` ไม่นับ เรียงใหม่ไปเก่า และยังจำกัดที่ `access-control.audit.list-limit` ค่าที่อ่านไม่ได้ตอบ `invalid_request`
 - Consequences: ค่าที่เคยตั้งใน `access-control.audit.retention-days` ถูกข้ามไป installation เดิมได้ 730 วันจาก migration แล้วตั้งใหม่ในหน้าตั้งค่า module อื่นที่อยากให้ audit ถามอะไรก็ทำแบบเดียวกันได้ โดยไม่ทำให้ audit พึ่ง module นั้น
+
+## P-019 หลาย role ต่อ user, การมอบ role มีช่วงเวลา และ role ในตัวมาจากโค้ด (แทน P-003)
+
+- Context: P-003 เก็บ role เดียวใน `users.role_id` และตัดเรื่อง role ชั่วคราวออก แต่ระบบองค์กรต้องการทั้งสองอย่าง: NIST RBAC (ANSI INCITS 359) ให้หนึ่งคนถือได้หลาย role, Microsoft Entra PIM และ Salesforce ให้การมอบมีวันเริ่มและวันสิ้นสุด และตั้งกติกาการมอบแยกตาม role ได้ ส่วน role ในตัวของ Entra และ AWS เหมือนกันทุก installation และแก้ไม่ได้ API.md จึงเปลี่ยน `User.roleId` เป็น `User.roles: RoleAssignment[]` เพิ่ม `/role-assignments` และ `Role.assignment`
+- Decision:
+  - ตาราง `role_assignments` (id, user_id FK cascade, role_id FK, starts_at, ends_at null = ถาวร, reason, assigned_by FK set null, assigned_at, expiry_logged_at) แทน `users.role_id` migration ย้าย role เดิมของทุกคนเป็นการมอบแบบถาวรที่เริ่มตั้งแต่ `created_at` แล้วลบคอลัมน์
+  - การมอบนับเมื่อ `starts_at <= now < ends_at` สิทธิ์ของคนคือสิทธิ์รวมของทุก role ที่นับอยู่ `PermissionAuthenticationConverter` ยังคิดใหม่ทุก request (P-015): cache `accounts` เก็บรายการการมอบพร้อมวันที่ แล้วเลือกที่นับ ณ ตอนนั้น การมอบจึงหมดผลตรงเวลา ไม่ต้องรอ cache หมดอายุ `Actor` ถือชุด role id แทน role เดียว
+  - กฎ: มอบได้เมื่อถือทุกสิทธิ์ของ role นั้น จัดการใครได้เมื่อถือทุกสิทธิ์ของทุก role ที่เขาถือตอนนี้หรือที่นัดไว้ ห้ามแก้การมอบของตัวเอง และห้ามแก้สิทธิ์ของ role ที่ตัวเองถืออยู่ (`self_change`) ทั้งหมดอยู่ใน `GrantPolicy` และ `SelfProtectionPolicy` เหมือนเดิม
+  - `roles` เพิ่ม `assignment_max_days` (1–365 หรือ null) และ `assignment_reason_required` เกินวันตอบ `assignment_too_long` ไม่มีเหตุผลตอบ `reason_required` (422) การมอบซ้อนช่วงกับของเดิมของ role เดียวกันตอบ `already_assigned` (409)
+  - ต้องมี user ที่ active ถือ role ที่มีทุกสิทธิ์แบบถาวรเหลืออย่างน้อยหนึ่งคน (แบบ super admin คนสุดท้ายของ Google Workspace) การถอด การใส่วันสิ้นสุด การระงับ หรือการลบที่ทำให้ไม่เหลือ ตอบ `last_administrator` (409) เพราะเมื่อ role หมดอายุได้ ระบบอาจไม่มีผู้ดูแลเหลือ
+  - role ในตัว (`is_system`) ซิงก์ชื่อ คำอธิบาย และสิทธิ์จาก `CoreRoles`/`AppRoles` ทุกครั้งที่เริ่มระบบ ไม่ใช่แค่ครั้งแรก Administrator ได้ทุกสิทธิ์ที่ประกาศไว้ รวมสิทธิ์ที่เพิ่มทีหลัง `PATCH` แก้ได้แค่ `tone` และ `assignment` นอกนั้นตอบ `system_role`
+  - การมอบที่หมดอายุยังเก็บไว้ให้ต่ออายุได้ แล้วลบพร้อม activity ตาม `activityRetentionDays` (P-018) `RoleAssignmentExpiryJob` รันทุก 5 นาที เขียน `role_assignment.expired` (actor null) ครั้งเดียวต่อการมอบผ่าน `expiry_logged_at` แล้วส่ง live update ทุก instance รัน job นี้ได้พร้อมกันเพราะ update แบบมีเงื่อนไขทำให้เขียนครั้งเดียว
+  - activity ใหม่: `role_assignment.added`, `.updated`, `.removed`, `.expired` แทน `user.updated` ที่ field `roleId` และ `activity.actor_id` เป็น null ได้ เพิ่ม `ErrorCode` สี่ตัวข้างบน
+- Consequences: สัญญา API เปลี่ยนแบบใช้กับของเดิมไม่ได้ (`User.roleId`, `POST /users/role`) frontend และ server ต้องเปลี่ยนพร้อมกันตาม P-001 `SettingsService.requiresTwoFactor` รับชุด role (P-016) ส่วน `defaultRoleId` ใช้กับ user ใหม่ที่ไม่ได้ระบุ role ผู้ดูแลที่เคยแก้สิทธิ์ของ Manager จะเห็นค่ากลับเป็นตามโค้ดหลังอัปเกรด ต้องคัดลอกเป็น role ใหม่แทน
