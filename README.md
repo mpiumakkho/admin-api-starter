@@ -45,6 +45,7 @@ provideUserManagement({ api: HttpAdminApi, apiUrl: '/api', liveUpdates: true }),
 | Two-step sign-in ตาม role | role ใน `twoFactorRoleIds` ของหน้าตั้งค่าต้องเปิด two-step sign-in ก่อน ระหว่างนั้นทุก request ตอบ 403 `two_factor_mandatory` ยกเว้นสิ่งที่ใช้เปิดมัน (P-016) |
 | หลาย role และ role ชั่วคราว | หนึ่งคนถือได้หลาย role สิทธิ์คือผลรวมของ role ที่นับอยู่ การมอบแต่ละครั้งมีวันเริ่ม วันสิ้นสุด (หรือถาวร) และเหตุผล แต่ละ role ตั้งกติกาได้ (มอบได้นานสุดกี่วัน, ต้องมีเหตุผล) หมดเวลาแล้วหยุดนับทันที ต้องมีผู้ใช้ที่ถือ role ที่มีทุกสิทธิ์แบบถาวรเหลืออย่างน้อยหนึ่งคน (`last_administrator`) ส่วน role ในตัวใช้ชื่อและสิทธิ์ตามโค้ดทุกครั้งที่ start (P-019) |
 | สาขา | เปิดใช้ได้ในหน้าตั้งค่า (`branchesEnabled`) ผู้ใช้สังกัดได้หนึ่งสาขาหรือไม่สังกัด และมอบ role เฉพาะสาขาได้ ซึ่งให้สิทธิ์เฉพาะในสาขานั้น (`Actor.can(permission, branchId)` สำหรับ module ธุรกิจ) ส่วนสิทธิ์ของ user management (`hasAuthority`) และ `last_administrator` นับเฉพาะ role ทั้งองค์กร สาขาที่ปิดรับคนหรือการมอบใหม่ไม่ได้ (`branch_closed`) และลบสาขาที่ยังมีคนไม่ได้ (`branch_in_use`) (P-020) |
+| เหตุผลของการเปลี่ยนแปลงสำคัญ | การระงับหรือเปิดใช้บัญชี ลบผู้ใช้ ถอดบทบาท reset รหัสผ่านหรือ 2FA และจบ session ของคนอื่น รับ `reason` ได้ ระบบเก็บไว้ใน activity log (`Activity.reason`) ส่วน `reasonsRequired` ในหน้าตั้งค่าเลือกว่าข้อไหนต้องมี ไม่มีจะตอบ `reason_required` (ค่าเริ่มต้นคือการระงับกับการลบ) (P-021) |
 
 ## Config ที่ต้องตั้งใน production (`--spring.profiles.active=prod`)
 
