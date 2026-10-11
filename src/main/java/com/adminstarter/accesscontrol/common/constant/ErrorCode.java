@@ -37,6 +37,8 @@ public enum ErrorCode {
     BRANCH_IN_USE(HttpStatus.CONFLICT),
     /** The branch is closed: nobody new joins it or gets a role there (P-020) */
     BRANCH_CLOSED(HttpStatus.CONFLICT),
+    /** The person holds, at the same time, another role that a rule says cannot be held with this one (P-022) */
+    ROLE_CONFLICT(HttpStatus.CONFLICT),
     EMAIL_DOMAIN(HttpStatus.UNPROCESSABLE_CONTENT),
     WEAK_PASSWORD(HttpStatus.UNPROCESSABLE_CONTENT),
     /** One of the user's most recent passwords (the settings' passwordHistory, P-017) */
