@@ -17,6 +17,11 @@ public interface UserSessionRepository extends JpaRepository<UserSession, UUID> 
             order by s.lastSeenAt desc""")
     List<UserSession> findOpen(UUID userId, Instant now);
 
+    boolean existsByUserId(UUID userId);
+
+    /** Whether the person has signed in with this browser and system before, as far as the kept sessions go */
+    boolean existsByUserIdAndBrowserAndOs(UUID userId, String browser, String os);
+
     /** Ended or run out before {@code before}; their refresh tokens go with them (on delete cascade) */
     @Modifying
     @Query("delete from UserSession s where s.endedAt < :before or s.expiresAt < :before")

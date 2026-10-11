@@ -59,8 +59,8 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void recordSignIn(UUID userId) {
-        access.find(userId).signedIn(clock.instant());
+    public void recordActivity(UUID userId) {
+        access.find(userId).markActive(clock.instant());
     }
 
     @Override

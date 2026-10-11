@@ -3,7 +3,9 @@ package com.adminstarter.accesscontrol.branch.service;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.BRANCH_CLOSED;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.NOT_FOUND;
 
+import com.adminstarter.accesscontrol.branch.entity.Branch;
 import com.adminstarter.accesscontrol.branch.repository.BranchRepository;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,5 +25,10 @@ public class BranchServiceImpl implements BranchService {
         if (!branches.findById(branchId).orElseThrow(NOT_FOUND::exception).isActive()) {
             throw BRANCH_CLOSED.exception();
         }
+    }
+
+    @Override
+    public Optional<String> nameOf(UUID branchId) {
+        return branches.findById(branchId).map(Branch::getName);
     }
 }

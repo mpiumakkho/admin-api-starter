@@ -52,6 +52,12 @@ public class RoleAssignmentResolver implements RoleHolderProvider {
         return of(userId).stream().filter(item -> item.heldAt(now)).toList();
     }
 
+    /** Whether this person holds a role with every permission, now, for good and for the whole organization */
+    public boolean isAdministrator(UUID userId) {
+        var full = roles.fullAccessRoleIds();
+        return !full.isEmpty() && assignments.isPermanentHolder(userId, full, clock.instant());
+    }
+
     /** How many active people hold a role with every permission, now and for good; at least one must stay */
     public long administrators() {
         var full = roles.fullAccessRoleIds();

@@ -5,6 +5,7 @@ import jakarta.mail.MessagingException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.mail.MailException;
@@ -50,12 +51,26 @@ public class MailNotificationService implements NotificationService {
         send(email, "Set a new password for " + productName, "mail/password-reset", firstName, link, expiresAt);
     }
 
+    @Async
+    @Override
+    public void sendNotice(String email, String firstName, String subject, List<String> lines) {
+        var context = new Context();
+        context.setVariable("firstName", firstName);
+        context.setVariable("lines", lines);
+        context.setVariable("productName", productName);
+        send(email, subject, "mail/notice", context);
+    }
+
     private void send(String to, String subject, String template, String firstName, String link, Instant expiresAt) {
         var context = new Context();
         context.setVariable("firstName", firstName);
         context.setVariable("link", link);
         context.setVariable("expiresAt", EXPIRY.format(expiresAt));
         context.setVariable("productName", productName);
+        send(to, subject, template, context);
+    }
+
+    private void send(String to, String subject, String template, Context context) {
         try {
             var message = mail.createMimeMessage();
             var helper = new MimeMessageHelper(message, "UTF-8");

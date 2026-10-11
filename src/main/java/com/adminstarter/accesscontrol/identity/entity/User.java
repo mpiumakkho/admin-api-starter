@@ -67,7 +67,8 @@ public class User {
         this.updatedAt = now;
     }
 
-    public void signedIn(Instant now) {
+    /** Signed in or refreshed a token: when they last used the app */
+    public void markActive(Instant now) {
         this.lastActiveAt = now;
     }
 

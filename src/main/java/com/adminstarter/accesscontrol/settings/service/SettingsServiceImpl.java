@@ -34,6 +34,8 @@ public class SettingsServiceImpl implements SettingsService {
     static final String TWO_FACTOR_ROLES_CACHE = "two-factor-roles";
     /** reauthWindow; evicted, after commit, whenever the settings change */
     static final String REAUTH_WINDOW_CACHE = "reauth-window";
+    /** idleTimeout; evicted, after commit, whenever the settings change */
+    static final String IDLE_TIMEOUT_CACHE = "idle-timeout";
 
     private final AdminSettingsRepository settings;
     private final RoleService roles;
@@ -70,6 +72,13 @@ public class SettingsServiceImpl implements SettingsService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = IDLE_TIMEOUT_CACHE)
+    public Duration idleTimeout() {
+        return Duration.ofMinutes(load().getSessionTimeoutMinutes());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public PasswordPolicyResponse passwordPolicy() {
         var current = load();
         return new PasswordPolicyResponse(current.getPasswordMinLength(), current.getPasswordHistory());
@@ -86,7 +95,7 @@ public class SettingsServiceImpl implements SettingsService {
     }
 
     /** A risky change: it needs a recent sign-in (P-023) */
-    @CacheEvict(cacheNames = {TWO_FACTOR_ROLES_CACHE, REAUTH_WINDOW_CACHE}, allEntries = true)
+    @CacheEvict(cacheNames = {TWO_FACTOR_ROLES_CACHE, REAUTH_WINDOW_CACHE, IDLE_TIMEOUT_CACHE}, allEntries = true)
     public SettingsResponse update(Actor actor, UpdateSettingsRequest request) {
         var current = load();
         if (request.defaultRoleId() != null) {
@@ -111,6 +120,7 @@ public class SettingsServiceImpl implements SettingsService {
         var reasonsRequired = request.reasonsRequired() == null ? current.getReasonsRequired()
                 : request.reasonsRequired().stream().distinct().toList();
         var reauthMinutes = Objects.requireNonNullElse(request.reauthMinutes(), current.getReauthMinutes());
+        var suspendInactiveDays = Objects.requireNonNullElse(request.suspendInactiveDays(), current.getSuspendInactiveDays());
 
         // In the order of AdminSettings in models.ts, the two lists last, as items added and removed
         var changes = new ArrayList<FieldChange>();
@@ -124,6 +134,7 @@ public class SettingsServiceImpl implements SettingsService {
                 .ifPresent(changes::add);
         FieldChange.diff("branchesEnabled", current.isBranchesEnabled(), branchesEnabled).ifPresent(changes::add);
         FieldChange.diff("reauthMinutes", current.getReauthMinutes(), reauthMinutes).ifPresent(changes::add);
+        FieldChange.diff("suspendInactiveDays", current.getSuspendInactiveDays(), suspendInactiveDays).ifPresent(changes::add);
         FieldChange.listDiff("allowedDomains", current.getAllowedDomains(), domains).ifPresent(changes::add);
         FieldChange.listDiff("twoFactorRoleIds", strings(current.getTwoFactorRoleIds()), strings(twoFactorRoleIds))
                 .ifPresent(changes::add);
@@ -135,6 +146,7 @@ public class SettingsServiceImpl implements SettingsService {
         current.changeBranchesEnabled(branchesEnabled, now);
         current.changeReasonsRequired(reasonsRequired, now);
         current.changeReauthMinutes(reauthMinutes, now);
+        current.changeSuspendInactiveDays(suspendInactiveDays, now);
         if (!changes.isEmpty()) {
             events.publishEvent(new SettingsUpdated(actor.userId(), List.copyOf(changes)));
         }
@@ -176,6 +188,6 @@ public class SettingsServiceImpl implements SettingsService {
         return new SettingsResponse(settings.getDefaultRoleId(), settings.getAllowedDomains(), settings.getInviteExpiryDays(),
                 settings.getSessionTimeoutMinutes(), settings.getTwoFactorRoleIds(), settings.getPasswordMinLength(),
                 settings.getPasswordHistory(), settings.getActivityRetentionDays(), settings.isBranchesEnabled(),
-                settings.getReasonsRequired(), settings.getReauthMinutes());
+                settings.getReasonsRequired(), settings.getReauthMinutes(), settings.getSuspendInactiveDays());
     }
 }

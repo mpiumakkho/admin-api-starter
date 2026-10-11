@@ -3,6 +3,7 @@ package com.adminstarter.accesscontrol.authentication.entity;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import org.hibernate.annotations.UuidGenerator;
@@ -12,6 +13,9 @@ import org.jspecify.annotations.Nullable;
 @Entity
 @Table(name = "user_sessions")
 public class UserSession {
+
+    /** How often "last seen" is brought up to date, so every request is not a write */
+    public static final Duration SEEN_EVERY = Duration.ofMinutes(1);
 
     @Id
     @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
@@ -47,6 +51,14 @@ public class UserSession {
 
     public boolean openAt(Instant now) {
         return endedAt == null && now.isBefore(expiresAt);
+    }
+
+    /**
+     * No request for longer than {@code timeout} (zero: never idle), give or take the minute lastSeenAt is kept to
+     * (P-027)
+     */
+    public boolean idleAt(Instant now, Duration timeout) {
+        return !timeout.isZero() && lastSeenAt.plus(timeout).plus(SEEN_EVERY).isBefore(now);
     }
 
     public void seen(Instant now) {

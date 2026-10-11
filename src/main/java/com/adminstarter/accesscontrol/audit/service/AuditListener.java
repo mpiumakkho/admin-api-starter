@@ -30,6 +30,7 @@ import com.adminstarter.accesscontrol.identity.event.UserDeleted;
 import com.adminstarter.accesscontrol.identity.event.UserInvitationResent;
 import com.adminstarter.accesscontrol.identity.event.UserPasswordChanged;
 import com.adminstarter.accesscontrol.identity.event.UserPasswordReset;
+import com.adminstarter.accesscontrol.identity.event.UserInactiveSuspended;
 import com.adminstarter.accesscontrol.identity.event.UserStatusChanged;
 import com.adminstarter.accesscontrol.identity.event.UserUpdated;
 import com.adminstarter.accesscontrol.settings.event.SettingsUpdated;
@@ -139,6 +140,13 @@ public class AuditListener {
     @EventListener
     void on(RecoveryCodesCreated event) {
         record(event.userId(), "auth.recovery_codes_created", event.fullName(), event.userId(), List.of());
+    }
+
+    /** By the server itself: no actor, and how long nobody used the account (P-027) */
+    @EventListener
+    void on(UserInactiveSuspended event) {
+        record(null, "user.suspended", event.fullName(), event.userId(), List.of(FieldChange.of("status", "active", "suspended"),
+                FieldChange.set("inactiveDays", String.valueOf(event.days()))), "", clock.instant());
     }
 
     @EventListener

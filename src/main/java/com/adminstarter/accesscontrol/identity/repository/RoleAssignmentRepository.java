@@ -30,6 +30,12 @@ public interface RoleAssignmentRepository extends JpaRepository<RoleAssignment, 
               and a.roleId in :roleIds and a.branchId is null and a.endsAt is null and a.startsAt <= :now""")
     long countPermanentHolders(Collection<UUID> roleIds, Instant now);
 
+    /** Whether this person holds, now, for good and for the whole organization, one of these roles */
+    @Query("""
+            select count(a) > 0 from RoleAssignment a
+            where a.userId = :userId and a.roleId in :roleIds and a.branchId is null and a.endsAt is null and a.startsAt <= :now""")
+    boolean isPermanentHolder(UUID userId, Collection<UUID> roleIds, Instant now);
+
     /** Whether anyone holds a role limited to the branch now or will hold one later */
     @Query("select count(a) > 0 from RoleAssignment a where a.branchId = :branchId and (a.endsAt is null or a.endsAt > :now)")
     boolean heldNowOrLaterIn(UUID branchId, Instant now);

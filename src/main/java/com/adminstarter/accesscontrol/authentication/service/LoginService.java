@@ -13,6 +13,7 @@ import com.adminstarter.accesscontrol.authentication.dto.ReauthenticateRequest;
 import com.adminstarter.accesscontrol.authentication.dto.TokenResponse;
 import com.adminstarter.accesscontrol.authentication.entity.RefreshToken;
 import com.adminstarter.accesscontrol.authentication.entity.UserSession;
+import com.adminstarter.accesscontrol.authentication.event.NewDeviceSignedIn;
 import com.adminstarter.accesscontrol.authentication.event.SignInFailed;
 import com.adminstarter.accesscontrol.authentication.event.SignedIn;
 import com.adminstarter.accesscontrol.authentication.repository.RefreshTokenRepository;
@@ -24,6 +25,7 @@ import com.adminstarter.accesscontrol.identity.dto.AccountSummary;
 import com.adminstarter.accesscontrol.identity.service.CredentialService;
 import com.adminstarter.accesscontrol.identity.service.UserService;
 import com.adminstarter.accesscontrol.security.jwt.JwtIssuer;
+import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -50,12 +52,13 @@ public class LoginService {
     private final RefreshTokenRepository refreshTokens;
     private final OpaqueTokenSupport tokens;
     private final JwtIssuer jwt;
+    private final SettingsService settings;
     private final ApplicationEventPublisher events;
     private final Clock clock;
     private final AccessControlProperties.Token ttl;
 
     public LoginService(UserService users, CredentialService credentials, UserSessionRepository sessions,
-            RefreshTokenRepository refreshTokens, OpaqueTokenSupport tokens, JwtIssuer jwt,
+            RefreshTokenRepository refreshTokens, OpaqueTokenSupport tokens, JwtIssuer jwt, SettingsService settings,
             ApplicationEventPublisher events, Clock clock, AccessControlProperties properties) {
         this.users = users;
         this.credentials = credentials;
@@ -63,6 +66,7 @@ public class LoginService {
         this.refreshTokens = refreshTokens;
         this.tokens = tokens;
         this.jwt = jwt;
+        this.settings = settings;
         this.events = events;
         this.clock = clock;
         this.ttl = properties.token();
@@ -94,14 +98,21 @@ public class LoginService {
         }
         checkCode(account, request.code());
         credentials.signInSucceeded(account.id());
-        users.recordSignIn(account.id());
+        users.recordActivity(account.id());
 
         var now = clock.instant();
         var context = RequestContext.currentOrNone();
+        // A browser and system never used before, other than for the first sign-in, is worth an email (P-027)
+        var newDevice = sessions.existsByUserId(account.id())
+                && !sessions.existsByUserIdAndBrowserAndOs(account.id(), context.browser(), context.os());
         var session = sessions.save(new UserSession(account.id(), request.remember(), context.ip(), context.browser(),
                 context.os(), now, now.plus(lifetime(request.remember()))));
         var refreshToken = newRefreshToken(session, now);
         events.publishEvent(new SignedIn(account.id(), account.fullName()));
+        if (newDevice) {
+            events.publishEvent(new NewDeviceSignedIn(account.id(), account.email(), account.firstName(), context.browser(),
+                    context.os(), context.ip(), now));
+        }
         return answer(account, session, refreshToken);
     }
 
@@ -110,6 +121,11 @@ public class LoginService {
         var token = presented == null ? null : refreshTokens.findByTokenHash(tokens.hash(presented)).orElse(null);
         var session = token == null ? null : sessions.findById(token.getSessionId()).orElse(null);
         if (token == null || session == null || token.expiredAt(now) || !session.openAt(now)) {
+            throw UNAUTHENTICATED.exception();
+        }
+        // No request for longer than the settings' idle timeout: the refresh cookie buys nothing more (P-027)
+        if (session.idleAt(now, settings.idleTimeout())) {
+            session.end(now);
             throw UNAUTHENTICATED.exception();
         }
         var account = users.findAccount(session.getUserId()).filter(AccountSummary::active)
@@ -126,6 +142,7 @@ public class LoginService {
         }
         token.replace(now);
         session.extend(now.plus(lifetime(session.isRemember())), now);
+        users.recordActivity(account.id());
         return answer(account, session, newRefreshToken(session, now));
     }
 
