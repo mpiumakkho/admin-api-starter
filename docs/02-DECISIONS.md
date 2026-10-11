@@ -174,3 +174,12 @@
   - activity `branch.created`, `branch.updated`, `branch.deleted` และ `ErrorCode` `CODE_TAKEN`, `BRANCH_IN_USE`, `BRANCH_CLOSED` (409)
 - Consequences: เพิ่มสาขาหรือขอบเขตอื่น (เขต, ภาค) ทีหลังได้โดยเปลี่ยน `branch_id` เป็นขอบเขตแบบลำดับชั้น module ธุรกิจที่กรองข้อมูลตามสาขาใช้ `Actor.can(permission, branchId)` แทน `hasAuthority` ตรง ๆ
 
+## P-021 เหตุผลของการเปลี่ยนแปลงสำคัญ: `Activity.reason` และ `reasonsRequired` ในการตั้งค่า
+
+- Context: ระบบองค์กรให้ผู้ดูแลระบุเหตุผล (justification) ของการกระทำที่ตัดหรือเปลี่ยนการเข้าถึงของคนอื่น แบบ Microsoft Entra PIM และ log ของผู้ดูแลใน Google Workspace ก่อนหน้านี้มีเหตุผลเฉพาะตอนมอบ role (P-019) ซึ่งเก็บเป็น `changes` ชื่อ `reason`
+- Decision:
+  - เหตุผลมีที่เดียวคือ `audit_logs.reason` (`V6__reasons.sql`) ส่งออกเป็น `ActivityResponse.reason` (null เมื่อไม่มี) event ที่มีเหตุผลพกมาเอง: `UserStatusChanged`, `UserDeleted`, `UserPasswordReset`, `TwoFactorChanged` (เมื่อผู้ดูแล reset), `SessionsEnded`, `RoleAssignmentAdded` (เหตุผลของการมอบ ย้ายออกจาก `changes`) และ `RoleAssignmentRemoved`
+  - การตั้งค่า `reasonsRequired` เลือกได้ห้าอย่าง: `status`, `delete`, `removeRole`, `resetSignIn`, `endSessions` ค่าเริ่มต้นคือ `status` กับ `delete` เก็บใน `admin_settings.reasons_required` เมื่อเลือกไว้แล้วไม่มีเหตุผล ตอบ `reason_required` (422) ทุก module ตรวจผ่าน `SettingsService.requireReason(action, reason)` ซึ่งคืนเหตุผลที่ตัดช่องว่างแล้ว ส่วนที่ไม่ได้เลือกยังส่งเหตุผลมาได้
+  - คำขอที่รับ `reason`: `POST /users/status`, `/users/delete`, `/users/:id/reset-password`, `/users/:id/two-factor/reset`, `/users/:id/sessions/end`, `POST /role-assignments/batch` (กับ `removeRoleId`) และ `DELETE /role-assignments/:id`, `DELETE /sessions/:id` ซึ่งรับ body `{ reason }` ที่ไม่บังคับ การกระทำกับตัวเอง (session หรือรหัสผ่านของตัวเอง) ไม่ต้องมีเหตุผล
+  - การแก้เหตุผลของการมอบที่มีอยู่ (`PATCH /role-assignments/:id`) ยังลง `changes` ชื่อ `reason` เพราะเป็นข้อมูลของการมอบที่เปลี่ยน ไม่ใช่เหตุผลของคำขอ
+- Consequences: entry `role_assignment.added` เก่าที่เก็บเหตุผลใน `changes` ยังอ่านได้ตามเดิม `DELETE` ที่มี body บาง proxy อาจตัดทิ้ง ถ้าต้องเจอให้เปลี่ยนเป็นคำขอ `POST` แบบ PIM (`roleAssignmentScheduleRequests`) ทีหลัง เหตุผลยาวไม่เกิน 500 ตัวอักษรเท่ากับเหตุผลของการมอบ
