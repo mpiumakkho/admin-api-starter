@@ -57,7 +57,7 @@ admin-api-starter/
 
 | Path | Purpose | May depend on |
 |---|---|---|
-| `PermissionAuthenticationConverter.java` | JWT → `ActorAuthentication` ตรวจว่า session ยังเปิด, บัญชี active ดึงสิทธิ์ปัจจุบัน และดูว่า role บังคับ two-step sign-in ที่ยังปิดอยู่หรือไม่ (`Actor.twoFactorSetupRequired`) | `identity.pub`, `authorization.pub`, `settings.pub`, `SessionChecker` |
+| `PermissionAuthenticationConverter.java` | JWT → `ActorAuthentication` ตรวจว่า session ยังเปิด, บัญชี active เลือก role ที่นับ ณ ตอนนั้นแล้วรวมสิทธิ์ (P-019) และดูว่ามี role ที่บังคับ two-step sign-in ที่ยังปิดอยู่หรือไม่ (`Actor.twoFactorSetupRequired`) | `identity.pub`, `authorization.pub`, `settings.pub`, `SessionChecker` |
 | `ActorAuthentication.java` | principal คือ `Actor` ส่วน authority คือ permission code | `common` |
 | `SessionChecker.java` | interface ที่ authentication implement (P-010) | — |
 | `RequestContextFilter.java` | bind `RequestContext` (ScopedValue) + MDC `request_id` | `common` |
@@ -80,7 +80,7 @@ admin-api-starter/
 
 | Module | Layers | Public surface | หน้าที่ |
 |---|---|---|---|
-| `identity/` | controller, service, repository, entity, dto, event, policy | `UserService`, `CredentialService`, `dto/*`, `event/*` | user, รหัสผ่าน (Argon2id + lockout, กฎจาก settings และประวัติใน `previous_passwords`: P-017), 2FA (TOTP), กฎป้องกันตัวเอง; `UserController` (`/api/users`, รวม `POST /role`), `MeController` (`/api/me`) |
+| `identity/` | controller, service, repository, entity, dto, event, policy | `UserService`, `CredentialService`, `dto/*`, `event/*` | user, รหัสผ่าน (Argon2id + lockout, กฎจาก settings และประวัติใน `previous_passwords`: P-017), 2FA (TOTP), กฎป้องกันตัวเอง, การมอบ role ที่มีช่วงเวลา (`role_assignments`, `RoleAssignmentExpiryJob`: P-019); `UserController` (`/api/users`), `RoleAssignmentController` (`/api/role-assignments`), `MeController` (`/api/me`) |
 | `authentication/` | controller, service, repository, entity, dto, event | `event/*` | login, refresh rotation + reuse detection, session/อุปกรณ์, ลิงก์ในอีเมล; `AuthController` (`/api/auth`, รวม `GET /password-policy`), `SessionController` |
 | `authorization/` | controller, service, repository, entity, dto, event, policy, spi | `RoleService`, `CorePermissions`, `CoreRoles`, `spi/*`, `dto/*`, `event/*` | role, permission catalog (sync ตอน start), `GrantPolicy`; `RoleController` (`/api/roles`) |
 | `settings/` | controller, service, repository, entity, dto, event | `SettingsService`, `dto/*`, `event/*` | `AdminSettings` รวมกฎของบัญชี (`twoFactorRoleIds`, `passwordMinLength`, `passwordHistory`, `activityRetentionDays`); `SettingsController` (`/api/settings`); `RoleEventListener` เอา role ที่ถูกลบออกจาก `twoFactorRoleIds` |

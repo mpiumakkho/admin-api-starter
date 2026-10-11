@@ -43,6 +43,7 @@ provideUserManagement({ api: HttpAdminApi, apiUrl: '/api', liveUpdates: true }),
 | ป้องกันการเดา | ใส่รหัสผิด 5 ครั้งติดกันจะถูกล็อก 1 นาที และเพิ่มเป็นสองเท่าทุกครั้งจนถึง 30 นาที endpoint `/api/auth/*` มี rate limit ต่อ IP |
 | กฎรหัสผ่าน | ความยาวขั้นต่ำ (`passwordMinLength`) และจำนวนรหัสล่าสุดที่ห้ามใช้ซ้ำ (`passwordHistory`) มาจากหน้าตั้งค่า ใช้กับทุกที่ที่ตั้งรหัส ใครก็อ่านได้ที่ `GET /api/auth/password-policy` (P-017) |
 | Two-step sign-in ตาม role | role ใน `twoFactorRoleIds` ของหน้าตั้งค่าต้องเปิด two-step sign-in ก่อน ระหว่างนั้นทุก request ตอบ 403 `two_factor_mandatory` ยกเว้นสิ่งที่ใช้เปิดมัน (P-016) |
+| หลาย role และ role ชั่วคราว | หนึ่งคนถือได้หลาย role สิทธิ์คือผลรวมของ role ที่นับอยู่ การมอบแต่ละครั้งมีวันเริ่ม วันสิ้นสุด (หรือถาวร) และเหตุผล แต่ละ role ตั้งกติกาได้ (มอบได้นานสุดกี่วัน, ต้องมีเหตุผล) หมดเวลาแล้วหยุดนับทันที ต้องมีผู้ใช้ที่ถือ role ที่มีทุกสิทธิ์แบบถาวรเหลืออย่างน้อยหนึ่งคน (`last_administrator`) ส่วน role ในตัวใช้ชื่อและสิทธิ์ตามโค้ดทุกครั้งที่ start (P-019) |
 
 ## Config ที่ต้องตั้งใน production (`--spring.profiles.active=prod`)
 
