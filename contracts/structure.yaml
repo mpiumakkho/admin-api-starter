@@ -27,7 +27,7 @@ backend:
     authorization:
       layers: [controller, service, repository, entity, dto, event, policy, spi]
       extra_files: [CorePermissions.java, CoreRoles.java]
-    audit:                           # P-018: spi/ActivityRetentionProvider, implemented by settings
+    audit:                           # P-018, P-024: spi/ActivityRetentionProvider and ActivityAudienceProvider, joined in config
       layers: [controller, service, repository, entity, dto, event, spi]
     notification:
       layers: [service]              # emails only: no controller, repository, entity or dto by design
