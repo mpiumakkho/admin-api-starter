@@ -10,6 +10,9 @@ public interface CredentialService {
 
     boolean checkPassword(UUID userId, String password);
 
+    /** Locked by too many wrong answers in a row: even the right password is refused for now (LockoutPolicy) */
+    boolean lockedNow(UUID userId);
+
     /** Takes as long as checking a real password, so an unknown email cannot be told apart by timing */
     void checkNoPassword(String password);
 
