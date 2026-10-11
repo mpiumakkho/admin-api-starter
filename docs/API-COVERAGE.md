@@ -5,9 +5,9 @@
 สัญญาของ API อยู่ที่ [`API.md`](https://github.com/mpiumakkho/admin-ng-starter/blob/main/src/app/user-management/API.md) ใน admin-ng-starter (ในเครื่อง: `../admin-ng-starter/src/app/user-management/API.md`)
 ไฟล์นี้บอกว่า server ตัวนี้ทำ endpoint ไหนแล้ว ตรวจสิทธิ์ตรงกับสัญญาไหม และมี integration test ไหนเรียกบ้าง
 
-- **Endpoint:** ทำแล้ว 33 จาก 33
-- **มี integration test เรียกตรง:** 31 จาก 33
-- **Error code:** สัญญามี 21 ตัว, `ErrorCode` มี 21 ตัว
+- **Endpoint:** ทำแล้ว 36 จาก 36
+- **มี integration test เรียกตรง:** 34 จาก 36
+- **Error code:** สัญญามี 25 ตัว, `ErrorCode` มี 25 ตัว
 
 สถานะ: ✅ ทำแล้ว ❌ ยังไม่มีใน controller
 
@@ -43,7 +43,7 @@ Integration test: class ที่เรียก endpoint นั้นตรง�
 
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
-| ✅ | `GET /users/:id/sessions` | — | `isAuthenticated()` |   | `SessionController.list` | AccessRulesIT, AuthenticationFlowIT |
+| ✅ | `GET /users/:id/sessions` | — | `isAuthenticated()` |   | `SessionController.list` | AccessRulesIT, AuthenticationFlowIT, RoleAssignmentsIT |
 | ✅ | `DELETE /sessions/:id` | — | `isAuthenticated()` |   | `SessionController.end` | — |
 | ✅ | `POST /users/:id/sessions/end` | — | `isAuthenticated()` |   | `SessionController.endAll` | AuthenticationFlowIT |
 | ✅ | `POST /me/two-factor` | — | `isAuthenticated()` |   | `MeController.startTwoFactor` | AccountRulesIT, AuthenticationFlowIT |
@@ -55,30 +55,38 @@ Integration test: class ที่เรียก endpoint นั้นตรง�
 
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
-| ✅ | `GET /users` | `users.view`; without it, only the signed-in user | `isAuthenticated()` | ✅ service | `UserController.list` | AccessRulesIT, AccountRulesIT, AuthenticationFlowIT |
-| ✅ | `POST /users` | `users.create` | `hasAuthority('users.create')` | ✅ | `UserController.create` | AccessRulesIT, AccountRulesIT, ApiIntegrationTest, AuthenticationFlowIT |
+| ✅ | `GET /users` | `users.view`; without it, only the signed-in user | `isAuthenticated()` | ✅ service | `UserController.list` | AccessRulesIT, AccountRulesIT, ApiIntegrationTest, AuthenticationFlowIT, RoleAssignmentsIT |
+| ✅ | `POST /users` | `users.create` | `hasAuthority('users.create')` | ✅ | `UserController.create` | AccessRulesIT, AccountRulesIT, ApiIntegrationTest, AuthenticationFlowIT, RoleAssignmentsIT |
 | ✅ | `POST /users/import` | `users.create` | `hasAuthority('users.create')` | ✅ | `UserController.importUsers` | AccessRulesIT |
 | ✅ | `PATCH /users/:id` | `users.edit`; without it, people may change their own `firstName`, `lastName`, `phone` and `avatar` | `isAuthenticated()` | ✅ service | `UserController.update` | AccessRulesIT, AccountRulesIT |
-| ✅ | `POST /users/status` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `UserController.setStatus` | AccessRulesIT, AuthenticationFlowIT |
-| ✅ | `POST /users/role` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `UserController.setRole` | AccessRulesIT |
-| ✅ | `POST /users/delete` | `users.delete` | `hasAuthority('users.delete')` | ✅ | `UserController.delete` | AccessRulesIT |
+| ✅ | `POST /users/status` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `UserController.setStatus` | AccessRulesIT, AuthenticationFlowIT, RoleAssignmentsIT |
+| ✅ | `POST /users/delete` | `users.delete` | `hasAuthority('users.delete')` | ✅ | `UserController.delete` | AccessRulesIT, RoleAssignmentsIT |
 | ✅ | `POST /users/:id/reset-password` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `UserController.resetPassword` | AccessRulesIT, AccountRulesIT |
 | ✅ | `POST /users/:id/resend-invite` | `users.create` | `hasAuthority('users.create')` | ✅ | `UserController.resendInvite` | — |
+
+## Role assignments
+
+| | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
+| --- | --- | --- | --- | --- | --- | --- |
+| ✅ | `POST /role-assignments` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `RoleAssignmentController.assign` | AccessRulesIT, RoleAssignmentsIT |
+| ✅ | `PATCH /role-assignments/:id` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `RoleAssignmentController.update` | RoleAssignmentsIT |
+| ✅ | `DELETE /role-assignments/:id` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `RoleAssignmentController.remove` | RoleAssignmentsIT |
+| ✅ | `POST /role-assignments/batch` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `RoleAssignmentController.batch` | AccessRulesIT, RoleAssignmentsIT |
 
 ## Roles
 
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
 | ✅ | `GET /roles` | Anyone signed in | `isAuthenticated()` |   | `RoleController.list` | AccessRulesIT, AccountRulesIT, ApiIntegrationTest |
-| ✅ | `POST /roles` | `roles.manage` | `hasAuthority('roles.manage')` | ✅ | `RoleController.create` | AccessRulesIT, AccountRulesIT |
-| ✅ | `PATCH /roles/:id` | `roles.manage` | `hasAuthority('roles.manage')` | ✅ | `RoleController.update` | AccessRulesIT |
-| ✅ | `DELETE /roles/:id` | `roles.manage` | `hasAuthority('roles.manage')` | ✅ | `RoleController.delete` | AccessRulesIT, AccountRulesIT, LiveUpdateIT |
+| ✅ | `POST /roles` | `roles.manage` | `hasAuthority('roles.manage')` | ✅ | `RoleController.create` | AccessRulesIT, AccountRulesIT, RoleAssignmentsIT |
+| ✅ | `PATCH /roles/:id` | `roles.manage` | `hasAuthority('roles.manage')` | ✅ | `RoleController.update` | RoleAssignmentsIT |
+| ✅ | `DELETE /roles/:id` | `roles.manage` | `hasAuthority('roles.manage')` | ✅ | `RoleController.delete` | AccessRulesIT, AccountRulesIT, LiveUpdateIT, RoleAssignmentsIT |
 
 ## Activity
 
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
-| ✅ | `GET /activity` | `activity.view`; without it, an empty list | `isAuthenticated()` | ✅ service | `ActivityController.list` | AccessRulesIT, AccountRulesIT |
+| ✅ | `GET /activity` | `activity.view`; without it, an empty list | `isAuthenticated()` | ✅ service | `ActivityController.list` | AccessRulesIT, AccountRulesIT, RoleAssignmentsIT |
 
 ## Settings
 
