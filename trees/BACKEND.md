@@ -45,9 +45,9 @@ admin-api-starter/
 
 | Path | Purpose |
 |---|---|
-| `SecurityConfig.java` | `SecurityFilterChain`: `/api/auth/**` เปิด, `/api/**` ต้องมี access token, ที่เหลือปิด; CORS; `PasswordEncoder` (Argon2id); ใส่ `RequestContextFilter`, `RateLimitFilter` และ `TwoFactorSetupFilter` |
+| `SecurityConfig.java` | `SecurityFilterChain`: `/api/auth/**` เปิด, `/api/**` ต้องมี access token, ที่เหลือปิด; CORS; `PasswordEncoder` (Argon2id); ใส่ `RequestContextFilter`, `RateLimitFilter` และ `TwoFactorSetupFilter`; bean `ActivityAudienceProvider` จาก `UserService` (P-024) |
 | `JwtConfig.java` | `JwtEncoder` / `JwtDecoder` (Nimbus) จาก `JwtKeyProvider` |
-| `CacheConfig.java` | Caffeine cache แบบ transaction-aware: `accounts`, `role-permissions`, `two-factor-roles` |
+| `CacheConfig.java` | Caffeine cache แบบ transaction-aware: `accounts`, `role-permissions`, `two-factor-roles`, `reauth-window` |
 | `AsyncConfig.java` | `@EnableAsync` (อีเมล), `@EnableScheduling` (งานกลางคืน, ping SSE); bean `ActivityRetentionProvider` จาก `SettingsService` (P-018) |
 | `ClockConfig.java` | `Clock` สำหรับทุก timestamp |
 | `JacksonConfig.java` | request body แบบเข้มงวด (กฎข้อ 5) |
@@ -80,12 +80,12 @@ admin-api-starter/
 
 | Module | Layers | Public surface | หน้าที่ |
 |---|---|---|---|
-| `identity/` | controller, service, repository, entity, dto, event, policy | `UserService`, `CredentialService`, `dto/*`, `event/*` | user, รหัสผ่าน (Argon2id + lockout, กฎจาก settings และประวัติใน `previous_passwords`: P-017), 2FA (TOTP), กฎป้องกันตัวเอง, การมอบ role ที่มีช่วงเวลา (`role_assignments`, `RoleAssignmentExpiryJob`: P-019) ทั้งองค์กรหรือเฉพาะสาขา และสาขาที่ user สังกัด (`BranchMemberResolver`: P-020); `UserController` (`/api/users`), `RoleAssignmentController` (`/api/role-assignments`), `MeController` (`/api/me`) |
+| `identity/` | controller, service, repository, entity, dto, event, policy | `UserService`, `CredentialService`, `dto/*`, `event/*` | user, รหัสผ่าน (Argon2id + lockout, กฎจาก settings และประวัติใน `previous_passwords`: P-017), 2FA (TOTP), กฎป้องกันตัวเอง, การมอบ role ที่มีช่วงเวลา (`role_assignments`, `RoleAssignmentExpiryJob`: P-019) ทั้งองค์กรหรือเฉพาะสาขา และสาขาที่ user สังกัด (`BranchMemberResolver`: P-020), ผู้ดูแลระดับสาขา (`policy/BranchScopePolicy`: สิทธิ์ 4 ตัวที่ role ของสาขาให้กับคนในสาขานั้น P-024); `UserController` (`/api/users`), `RoleAssignmentController` (`/api/role-assignments`), `MeController` (`/api/me`) |
 | `authentication/` | controller, service, repository, entity, dto, event | `event/*` | login, refresh rotation + reuse detection, session/อุปกรณ์, ลิงก์ในอีเมล, ยืนยันตัวตนซ้ำ (`user_sessions.verified_at`: P-023); `AuthController` (`/api/auth`, รวม `GET /password-policy`), `SessionController` (รวม `POST /api/me/reauthenticate`) |
 | `authorization/` | controller, service, repository, entity, dto, event, policy, spi | `RoleService`, `CorePermissions`, `CoreRoles`, `spi/*`, `dto/*`, `event/*` | role, permission catalog (sync ตอน start), `GrantPolicy`, กฎบทบาทที่ห้ามถือร่วมกัน (`RoleConflictService`: P-022); `RoleController` (`/api/roles`), `RoleConflictController` (`/api/role-conflicts`) |
 | `settings/` | controller, service, repository, entity, dto, event | `SettingsService`, `dto/*`, `event/*` | `AdminSettings` รวมกฎของบัญชี (`twoFactorRoleIds`, `passwordMinLength`, `passwordHistory`, `activityRetentionDays`), `branchesEnabled`, `reasonsRequired` และ `reauthMinutes`; `SettingsService.requireReason` ให้ module อื่นตรวจเหตุผล (P-021) และ `reauthWindow` (cache) ให้ security คิด `Actor.recentSignIn` (P-023); `SettingsController` (`/api/settings`); `RoleEventListener` เอา role ที่ถูกลบออกจาก `twoFactorRoleIds` |
 | `branch/` | controller, service, repository, entity, dto, event, spi | `BranchService`, `spi/*`, `dto/*`, `event/*` | สาขา (P-020): `Branch` (code ไม่ซ้ำแบบไม่สนตัวพิมพ์, เปิด/ปิด); `BranchController` (`/api/branches`); `BranchService.requireOpen` ให้ identity ตรวจสาขาก่อนรับคนหรือมอบ role; `spi/BranchMemberProvider` ให้ identity ตอบว่าสาขายังมีคนอยู่ไหม |
-| `audit/` | controller, service, repository, entity, dto, event, spi | `event/ActivityRecorded`, `spi/*` | ฟัง event ของทุก module แล้วเขียน `audit_logs` ใน transaction เดียวกัน พร้อมเหตุผลที่ event พกมา (`reason`, P-021); `ActivityController` (`/api/activity?from=&to=`); `AuditRetentionJob` ลบ activity ที่เก่ากว่าที่ `ActivityRetentionProvider` บอกทุกคืน |
+| `audit/` | controller, service, repository, entity, dto, event, spi | `event/ActivityRecorded`, `spi/*` | ฟัง event ของทุก module แล้วเขียน `audit_logs` ใน transaction เดียวกัน พร้อมเหตุผลที่ event พกมา (`reason`, P-021); `ActivityController` (`/api/activity?from=&to=`); `AuditRetentionJob` ลบ activity ที่เก่ากว่าที่ `ActivityRetentionProvider` บอกทุกคืน; คนที่มี `activity.view` แค่ระดับสาขาเห็นเฉพาะ entry ของคนที่ `ActivityAudienceProvider` บอก (P-024) |
 | `notification/` | service | `NotificationService` | อีเมลเชิญและรีเซ็ตรหัสผ่าน (Thymeleaf, `@Async`, หลัง commit) |
 | `liveupdate/` | controller, service | — | SSE `/api/events` ส่ง `NOTIFY admin_changes` ใน transaction ของการเปลี่ยนแปลง แล้ว `ChangeNotificationListener` ของทุก instance ได้ยินและส่งต่อให้ stream โดยรวมการเปลี่ยนแปลงที่เกิดติด ๆ กันเป็นข้อความเดียว (P-015) |
 
