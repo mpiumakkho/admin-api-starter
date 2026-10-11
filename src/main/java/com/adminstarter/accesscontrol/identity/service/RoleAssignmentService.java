@@ -6,8 +6,10 @@ import static com.adminstarter.accesscontrol.common.constant.ErrorCode.INVALID_R
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.LAST_ADMINISTRATOR;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.NOT_FOUND;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.REASON_REQUIRED;
+import static com.adminstarter.accesscontrol.common.constant.ErrorCode.ROLE_CONFLICT;
 
 import com.adminstarter.accesscontrol.authorization.dto.RoleResponse;
+import com.adminstarter.accesscontrol.authorization.service.RoleConflictService;
 import com.adminstarter.accesscontrol.authorization.service.RoleService;
 import com.adminstarter.accesscontrol.branch.service.BranchService;
 import com.adminstarter.accesscontrol.common.context.Actor;
@@ -54,19 +56,21 @@ public class RoleAssignmentService {
     private final RoleService roles;
     private final SettingsService settings;
     private final BranchService branches;
+    private final RoleConflictService conflicts;
     private final UserMapper mapper;
     private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public RoleAssignmentService(RoleAssignmentRepository assignments, RoleAssignmentResolver resolver,
             UserAccessService access, RoleService roles, SettingsService settings, BranchService branches,
-            UserMapper mapper, ApplicationEventPublisher events, Clock clock) {
+            RoleConflictService conflicts, UserMapper mapper, ApplicationEventPublisher events, Clock clock) {
         this.assignments = assignments;
         this.resolver = resolver;
         this.access = access;
         this.roles = roles;
         this.settings = settings;
         this.branches = branches;
+        this.conflicts = conflicts;
         this.mapper = mapper;
         this.events = events;
         this.clock = clock;
@@ -97,6 +101,8 @@ public class RoleAssignmentService {
                     throw INVALID_REQUEST.exception();
                 }
                 requireWithinRules(role, latest(assignment.getStartsAt(), now), endsAt);
+                var others = resolver.of(user.getId()).stream().filter(item -> !item.getId().equals(id)).toList();
+                requireNoConflict(assignment.getRoleId(), assignment.getStartsAt(), endsAt, others, now);
                 changes.add(FieldChange.of("endsAt", text(assignment.getEndsAt()), text(endsAt)));
                 var hadAdministrators = resolver.administrators();
                 assignment.moveEnd(endsAt);
@@ -260,6 +266,7 @@ public class RoleAssignmentService {
                 && Objects.equals(item.getBranchId(), branchId) && item.overlaps(start, end))) {
             throw ALREADY_ASSIGNED.exception();
         }
+        requireNoConflict(grant.roleId(), start, end, held, now);
         return new RoleAssignment(userId, grant.roleId(), branchId, start, end, reason, actor.userId(), now);
     }
 
@@ -268,6 +275,19 @@ public class RoleAssignmentService {
         var user = access.findManageable(actor, assignment.getUserId());
         SelfProtectionPolicy.forbidSelf(actor, List.of(user.getId()));
         return user;
+    }
+
+    /**
+     * No rule says the role cannot be held with another the person holds, now or later, at a time the period overlaps;
+     * in any scope (P-022)
+     */
+    private void requireNoConflict(UUID roleId, Instant start, @Nullable Instant end, List<RoleAssignment> held, Instant now) {
+        for (var rule : conflicts.rulesWith(roleId)) {
+            if (held.stream().anyMatch(item -> !item.getRoleId().equals(roleId) && rule.roleIds().contains(item.getRoleId())
+                    && item.heldAt(now) && item.overlaps(start, end))) {
+                throw ROLE_CONFLICT.exception();
+            }
+        }
     }
 
     private void requireAdministratorRemains(long before) {

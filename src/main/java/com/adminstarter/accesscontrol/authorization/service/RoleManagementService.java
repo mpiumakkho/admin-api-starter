@@ -45,15 +45,17 @@ public class RoleManagementService {
     private final PermissionRepository permissions;
     private final RoleMapper mapper;
     private final RoleHolderProvider holders;
+    private final RoleConflictService conflicts;
     private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public RoleManagementService(RoleRepository roles, PermissionRepository permissions, RoleMapper mapper,
-            RoleHolderProvider holders, ApplicationEventPublisher events, Clock clock) {
+            RoleHolderProvider holders, RoleConflictService conflicts, ApplicationEventPublisher events, Clock clock) {
         this.roles = roles;
         this.permissions = permissions;
         this.mapper = mapper;
         this.holders = holders;
+        this.conflicts = conflicts;
         this.events = events;
         this.clock = clock;
     }
@@ -144,6 +146,7 @@ public class RoleManagementService {
         var removed = RoleMapper.ordered(role.getPermissions(), mapper.order());
         events.publishEvent(new RoleDeleted(actor.userId(), id, role.getName(),
                 List.of(FieldChange.list("permissions", List.of(), removed))));
+        conflicts.forgetRole(id);
         roles.delete(role);
         // The settings may still give it to new users: the foreign key fk_admin_settings_default_role refuses the
         // delete, and ApiExceptionHandler answers default_role. Flushing here makes that happen inside this transaction.

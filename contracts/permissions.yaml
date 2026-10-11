@@ -67,6 +67,10 @@ endpoints:
   - { method: POST,   path: "/api/roles",                         permission: roles.manage }
   - { method: PATCH,  path: "/api/roles/{id}",                    permission: roles.manage }
   - { method: DELETE, path: "/api/roles/{id}",                    permission: roles.manage }
+  - { method: GET,    path: "/api/role-conflicts",                permission: authenticated, note: "P-022" }
+  - { method: POST,   path: "/api/role-conflicts",                permission: roles.manage }
+  - { method: PATCH,  path: "/api/role-conflicts/{id}",           permission: roles.manage }
+  - { method: DELETE, path: "/api/role-conflicts/{id}",           permission: roles.manage }
   - { method: GET,    path: "/api/branches",                      permission: authenticated, note: "P-020" }
   - { method: POST,   path: "/api/branches",                      permission: branches.manage }
   - { method: PATCH,  path: "/api/branches/{id}",                 permission: branches.manage }

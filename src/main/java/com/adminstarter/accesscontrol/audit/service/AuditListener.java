@@ -5,6 +5,9 @@ import com.adminstarter.accesscontrol.audit.event.ActivityRecorded;
 import com.adminstarter.accesscontrol.audit.repository.AuditLogRepository;
 import com.adminstarter.accesscontrol.authentication.event.SessionsEnded;
 import com.adminstarter.accesscontrol.authentication.event.SignedIn;
+import com.adminstarter.accesscontrol.authorization.event.RoleConflictCreated;
+import com.adminstarter.accesscontrol.authorization.event.RoleConflictDeleted;
+import com.adminstarter.accesscontrol.authorization.event.RoleConflictUpdated;
 import com.adminstarter.accesscontrol.authorization.event.RoleCreated;
 import com.adminstarter.accesscontrol.authorization.event.RoleDeleted;
 import com.adminstarter.accesscontrol.authorization.event.RoleUpdated;
@@ -147,6 +150,21 @@ public class AuditListener {
     @EventListener
     void on(RoleDeleted event) {
         record(event.actorId(), "role.deleted", event.name(), null, event.changes());
+    }
+
+    @EventListener
+    void on(RoleConflictCreated event) {
+        record(event.actorId(), "role_conflict.created", event.name(), event.conflictId(), event.changes());
+    }
+
+    @EventListener
+    void on(RoleConflictUpdated event) {
+        record(event.actorId(), "role_conflict.updated", event.name(), event.conflictId(), event.changes());
+    }
+
+    @EventListener
+    void on(RoleConflictDeleted event) {
+        record(event.actorId(), "role_conflict.deleted", event.name(), null, event.changes());
     }
 
     @EventListener
