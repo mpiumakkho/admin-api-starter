@@ -183,3 +183,14 @@
   - คำขอที่รับ `reason`: `POST /users/status`, `/users/delete`, `/users/:id/reset-password`, `/users/:id/two-factor/reset`, `/users/:id/sessions/end`, `POST /role-assignments/batch` (กับ `removeRoleId`) และ `DELETE /role-assignments/:id`, `DELETE /sessions/:id` ซึ่งรับ body `{ reason }` ที่ไม่บังคับ การกระทำกับตัวเอง (session หรือรหัสผ่านของตัวเอง) ไม่ต้องมีเหตุผล
   - การแก้เหตุผลของการมอบที่มีอยู่ (`PATCH /role-assignments/:id`) ยังลง `changes` ชื่อ `reason` เพราะเป็นข้อมูลของการมอบที่เปลี่ยน ไม่ใช่เหตุผลของคำขอ
 - Consequences: entry `role_assignment.added` เก่าที่เก็บเหตุผลใน `changes` ยังอ่านได้ตามเดิม `DELETE` ที่มี body บาง proxy อาจตัดทิ้ง ถ้าต้องเจอให้เปลี่ยนเป็นคำขอ `POST` แบบ PIM (`roleAssignmentScheduleRequests`) ทีหลัง เหตุผลยาวไม่เกิน 500 ตัวอักษรเท่ากับเหตุผลของการมอบ
+
+## P-022 บทบาทที่ห้ามถือร่วมกัน (separation of duties) เป็นกฎใน authorization ที่ identity ตรวจตอนมอบ
+
+- Context: ระบบองค์กรกันไม่ให้คนเดียวทั้งทำและตรวจงานเดียวกัน ตาม static separation of duty ของ NIST RBAC และ SoD rules ของ SAP GRC กับ Okta API.md เพิ่ม `/role-conflicts`: กฎหนึ่งข้อมีชื่อ คำอธิบาย และ role ตั้งแต่ 2 ถึง 20 ตัวที่ห้ามคนเดียวถือพร้อมกัน
+- Decision:
+  - กฎอยู่ใน module `authorization` (เจ้าของ role): entity `RoleConflict`, ตาราง `role_conflicts` กับ `role_conflict_roles` (`V7__role_conflicts.sql`, FK ไป `roles` แบบ on delete cascade), `RoleConflictController` (`/api/role-conflicts`: อ่านได้ทุกคนที่ลงชื่อเข้าใช้ แก้ด้วย `roles.manage`) และ `RoleConflictService.rulesWith(roleId)` ให้ identity เรียก ไม่มี module ใหม่
+  - identity ตรวจใน `RoleAssignmentService.check` ทุกทางที่มอบ role (มอบรายคน, batch, ผู้ใช้ใหม่, นำเข้า) และตอนเลื่อนวันสิ้นสุด: ถ้าคนนั้นถือ role อื่นในกฎเดียวกันในช่วงเวลาที่ทับกัน ตอบ `ROLE_CONFLICT` (409) ไม่สนขอบเขต (ทั้งองค์กรหรือสาขา) เพราะ role ของสาขาก็ทำให้คนเดียวทำทั้งสองอย่างได้
+  - การสร้างกฎไม่ตรวจคนที่ถืออยู่ก่อนแล้ว หน้า roles แสดงรายชื่อที่ต้องแก้ (คำนวณจาก `GET /users` กับกฎ) แบบ access review แล้วกฎจะกันคนใหม่ตั้งแต่นั้น
+  - ลบ role แล้ว role นั้นหลุดจากกฎ กฎที่เหลือ role ไม่ถึงสองตัวถูกลบไปด้วยใน transaction เดียวกับการลบ role
+  - activity `role_conflict.created`, `.updated`, `.deleted` (ชนิด roles) พร้อม `roles` เป็นรายการที่เพิ่มและเอาออก
+- Consequences: ยังไม่มีข้อยกเว้นแบบ mitigating control ของ SAP ถ้าต้องให้บางคนถือทั้งสองได้ ต้องแก้กฎ การมอบที่ทับกับ role ที่ "จะเริ่ม" ภายหลังก็ถูกกันด้วย เพราะนับทั้งที่ถืออยู่และที่นัดไว้
