@@ -1,6 +1,9 @@
 package com.adminstarter.accesscontrol.config;
 
 import com.adminstarter.accesscontrol.AccessControlProperties;
+import com.adminstarter.accesscontrol.audit.spi.ActivityAudienceProvider;
+import com.adminstarter.accesscontrol.authorization.CorePermissions;
+import com.adminstarter.accesscontrol.identity.service.UserService;
 import com.adminstarter.accesscontrol.security.PermissionAuthenticationConverter;
 import com.adminstarter.accesscontrol.security.RateLimitFilter;
 import com.adminstarter.accesscontrol.security.RequestContextFilter;
@@ -85,6 +88,15 @@ public class SecurityConfig {
         var source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", cors);
         return source;
+    }
+
+    /**
+     * Whose activity someone reads through roles limited to branches (P-024): the people of the branches where they have
+     * activity.view. Joined here, because audit only listens (R5) and identity must not depend on audit.
+     */
+    @Bean
+    ActivityAudienceProvider activityAudience(UserService users) {
+        return actor -> users.peopleOfBranchesWith(actor, CorePermissions.ACTIVITY_VIEW);
     }
 
     /** Argon2id for new hashes; BCrypt hashes, if any are imported, still match */

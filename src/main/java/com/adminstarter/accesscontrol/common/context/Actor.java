@@ -1,6 +1,7 @@
 package com.adminstarter.accesscontrol.common.context;
 
 import com.adminstarter.accesscontrol.common.constant.ErrorCode;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -52,6 +53,21 @@ public record Actor(UUID userId, UUID sessionId, Set<UUID> roleIds, Set<String> 
 
     public boolean is(UUID userId) {
         return this.userId.equals(userId);
+    }
+
+    /**
+     * What their roles allow in a scope: for the whole organization (null), their permissions there; in a branch, those
+     * together with what their roles limited to it allow. Giving a role and managing its holders count in the role's
+     * scope (P-024).
+     */
+    public Set<String> permissionsIn(@Nullable UUID branchId) {
+        var limited = branchId == null ? Set.<String>of() : branchPermissions.getOrDefault(branchId, Set.of());
+        if (limited.isEmpty()) {
+            return permissions;
+        }
+        var all = new HashSet<>(permissions);
+        all.addAll(limited);
+        return Set.copyOf(all);
     }
 
     /**

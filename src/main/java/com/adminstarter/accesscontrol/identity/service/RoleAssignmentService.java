@@ -2,12 +2,14 @@ package com.adminstarter.accesscontrol.identity.service;
 
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.ALREADY_ASSIGNED;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.ASSIGNMENT_TOO_LONG;
+import static com.adminstarter.accesscontrol.common.constant.ErrorCode.FORBIDDEN;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.INVALID_REQUEST;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.LAST_ADMINISTRATOR;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.NOT_FOUND;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.REASON_REQUIRED;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.ROLE_CONFLICT;
 
+import com.adminstarter.accesscontrol.authorization.CorePermissions;
 import com.adminstarter.accesscontrol.authorization.dto.RoleResponse;
 import com.adminstarter.accesscontrol.authorization.service.RoleConflictService;
 import com.adminstarter.accesscontrol.authorization.service.RoleService;
@@ -24,6 +26,7 @@ import com.adminstarter.accesscontrol.identity.entity.User;
 import com.adminstarter.accesscontrol.identity.event.RoleAssignmentAdded;
 import com.adminstarter.accesscontrol.identity.event.RoleAssignmentRemoved;
 import com.adminstarter.accesscontrol.identity.event.RoleAssignmentUpdated;
+import com.adminstarter.accesscontrol.identity.policy.BranchScopePolicy;
 import com.adminstarter.accesscontrol.identity.policy.SelfProtectionPolicy;
 import com.adminstarter.accesscontrol.identity.repository.RoleAssignmentRepository;
 import com.adminstarter.accesscontrol.settings.service.SettingsService;
@@ -32,6 +35,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -44,7 +48,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Giving, changing and taking away roles (P-019), with the rules in API.md, "Role assignments"; local-admin-api.ts is
- * the reference. Every change evicts the cached accounts, so the next request of the person sees it.
+ * the reference. Each assignment counts in its scope: users.edit (users.create for a new user's roles) and every
+ * permission of the role, for the whole organization or in its branch (P-024). Every change evicts the cached
+ * accounts, so the next request of the person sees it.
  */
 @Service
 @Transactional
@@ -78,10 +84,10 @@ public class RoleAssignmentService {
 
     @CacheEvict(cacheNames = UserServiceImpl.ACCOUNTS_CACHE, allEntries = true)
     public UserResponse assign(Actor actor, CreateRoleAssignmentRequest request) {
-        var user = access.findManageable(actor, request.userId());
+        var user = access.findManageable(actor, request.userId(), CorePermissions.USERS_EDIT);
         SelfProtectionPolicy.forbidSelf(actor, List.of(user.getId()));
         actor.requireRecentSignIn();
-        give(actor, user, request.grant(), resolver.of(user.getId()));
+        give(actor, user, request.grant(), resolver.of(user.getId()), CorePermissions.USERS_EDIT);
         return mapper.toResponse(user);
     }
 
@@ -90,7 +96,7 @@ public class RoleAssignmentService {
     public UserResponse update(Actor actor, UUID id, UpdateRoleAssignmentRequest request) {
         var assignment = assignments.findById(id).orElseThrow(NOT_FOUND::exception);
         var user = changeable(actor, assignment);
-        var role = roles.requireAssignable(actor, assignment.getRoleId());
+        var role = requireChangeable(actor, assignment);
         actor.requireRecentSignIn();
         var now = clock.instant();
         var changes = new ArrayList<FieldChange>();
@@ -129,7 +135,7 @@ public class RoleAssignmentService {
     public UserResponse remove(Actor actor, UUID id, @Nullable String reason) {
         var assignment = assignments.findById(id).orElseThrow(NOT_FOUND::exception);
         var user = changeable(actor, assignment);
-        roles.requireAssignable(actor, assignment.getRoleId());
+        requireChangeable(actor, assignment);
         actor.requireRecentSignIn();
         var why = settings.requireReason("removeRole", reason);
         var hadAdministrators = resolver.administrators();
@@ -153,7 +159,7 @@ public class RoleAssignmentService {
         }
         var ids = request.userIds().stream().distinct().toList();
         SelfProtectionPolicy.forbidSelf(actor, ids);
-        var users = ids.stream().map(id -> access.findManageable(actor, id)).toList();
+        var users = ids.stream().map(id -> access.findManageable(actor, id, CorePermissions.USERS_EDIT)).toList();
         actor.requireRecentSignIn();
         var now = clock.instant();
         var changed = new ArrayList<User>();
@@ -165,51 +171,53 @@ public class RoleAssignmentService {
                 // Held in the same scope: nothing to change
                 if (held.stream().noneMatch(item -> item.getRoleId().equals(roleId)
                         && Objects.equals(item.getBranchId(), branchId) && item.heldAt(now))) {
-                    give(actor, user, request.add(), held);
+                    give(actor, user, request.add(), held, CorePermissions.USERS_EDIT);
                     changed.add(user);
                 }
             }
         } else {
             var roleId = request.removeRoleId();
-            roles.requireAssignable(actor, roleId);
-            var why = settings.requireReason("removeRole", request.reason());
-            var hadAdministrators = resolver.administrators();
+            if (roles.find(roleId).isEmpty()) {
+                throw NOT_FOUND.exception();
+            }
+            // Each assignment taken away in its scope, all checked before any goes
+            var taken = new LinkedHashMap<User, List<RoleAssignment>>();
             for (var user : users) {
-                var taken = resolver.of(user.getId()).stream()
+                var held = resolver.of(user.getId()).stream()
                         .filter(item -> item.getRoleId().equals(roleId) && item.heldAt(now))
                         .toList();
-                if (!taken.isEmpty()) {
-                    assignments.deleteAll(taken);
-                    events.publishEvent(new RoleAssignmentRemoved(actor.userId(), user.getId(), user.getFullName(),
-                            List.of(FieldChange.was("roleId", roleId.toString())), why));
-                    changed.add(user);
+                held.forEach(item -> requireChangeable(actor, item));
+                if (!held.isEmpty()) {
+                    taken.put(user, held);
                 }
             }
+            var why = settings.requireReason("removeRole", request.reason());
+            var hadAdministrators = resolver.administrators();
+            taken.forEach((user, held) -> {
+                assignments.deleteAll(held);
+                events.publishEvent(new RoleAssignmentRemoved(actor.userId(), user.getId(), user.getFullName(),
+                        List.of(FieldChange.was("roleId", roleId.toString())), why));
+                changed.add(user);
+            });
             assignments.flush();
             requireAdministratorRemains(hadAdministrators);
         }
         return changed.stream().map(mapper::toResponse).toList();
     }
 
-    /** A new user's first roles; none gives the settings' default role, for good */
+    /** A new user's first roles; none gives the settings' default role, for good (see defaultGrant) */
     public void giveFirstRoles(Actor actor, User user, @Nullable List<RoleGrantRequest> grants) {
-        var given = grants == null || grants.isEmpty()
-                ? List.of(new RoleGrantRequest(settings.current().defaultRoleId(), null, null, null, null))
-                : grants;
         var held = new ArrayList<RoleAssignment>();
-        for (var grant : given) {
-            held.add(give(actor, user, grant, held));
+        for (var grant : firstGrants(actor, grants, user.getBranchId())) {
+            held.add(give(actor, user, grant, held, CorePermissions.USERS_CREATE));
         }
     }
 
     /** Checks a new user's roles as giving them would, without saving anything */
-    public void requireCanGive(Actor actor, @Nullable List<RoleGrantRequest> grants) {
-        var given = grants == null || grants.isEmpty()
-                ? List.of(new RoleGrantRequest(settings.current().defaultRoleId(), null, null, null, null))
-                : grants;
+    public void requireCanGive(Actor actor, @Nullable List<RoleGrantRequest> grants, @Nullable UUID branchId) {
         var held = new ArrayList<RoleAssignment>();
-        for (var grant : given) {
-            held.add(check(actor, UUID.randomUUID(), grant, held));
+        for (var grant : firstGrants(actor, grants, branchId)) {
+            held.add(check(actor, UUID.randomUUID(), grant, held, CorePermissions.USERS_CREATE));
         }
     }
 
@@ -225,9 +233,21 @@ public class RoleAssignmentService {
         return result;
     }
 
+    /**
+     * The roles a new user is given, or the settings' default role for good: for the whole organization, or limited to
+     * the new user's branch when the actor adds people only through branches (P-024)
+     */
+    private List<RoleGrantRequest> firstGrants(Actor actor, @Nullable List<RoleGrantRequest> grants, @Nullable UUID branchId) {
+        if (grants != null && !grants.isEmpty()) {
+            return grants;
+        }
+        var scope = actor.has(CorePermissions.USERS_CREATE) ? null : branchId;
+        return List.of(new RoleGrantRequest(settings.current().defaultRoleId(), scope, null, null, null));
+    }
+
     /** An assignment of a role to someone, checked as API.md says, and saved with its entry in the log */
-    private RoleAssignment give(Actor actor, User user, RoleGrantRequest grant, List<RoleAssignment> held) {
-        var assignment = assignments.save(check(actor, user.getId(), grant, held));
+    private RoleAssignment give(Actor actor, User user, RoleGrantRequest grant, List<RoleAssignment> held, String permission) {
+        var assignment = assignments.save(check(actor, user.getId(), grant, held, permission));
         var changes = new ArrayList<FieldChange>();
         changes.add(FieldChange.set("roleId", assignment.getRoleId().toString()));
         if (assignment.getBranchId() != null) {
@@ -246,12 +266,16 @@ public class RoleAssignmentService {
     }
 
     /**
-     * The actor may give the role, the branch is open, the dates make sense, the role's own rules hold, and it does not
-     * overlap one of the same role in the same scope the person already has
+     * The actor may give the role in its scope (the permission and every permission of the role there), the branch is
+     * open, the dates make sense, the role's own rules hold, and it does not overlap one of the same role in the same
+     * scope the person already has
      */
-    private RoleAssignment check(Actor actor, UUID userId, RoleGrantRequest grant, List<RoleAssignment> held) {
-        var role = roles.requireAssignable(actor, grant.roleId());
+    private RoleAssignment check(Actor actor, UUID userId, RoleGrantRequest grant, List<RoleAssignment> held, String permission) {
         var branchId = grant.branchId();
+        if (!BranchScopePolicy.allows(actor, permission, branchId)) {
+            throw FORBIDDEN.exception();
+        }
+        var role = roles.requireAssignable(actor, grant.roleId(), branchId);
         if (branchId != null) {
             branches.requireOpen(branchId);
         }
@@ -276,9 +300,17 @@ public class RoleAssignmentService {
 
     /** The person an assignment belongs to: someone the actor may change, and not the actor */
     private User changeable(Actor actor, RoleAssignment assignment) {
-        var user = access.findManageable(actor, assignment.getUserId());
+        var user = access.findManageable(actor, assignment.getUserId(), CorePermissions.USERS_EDIT);
         SelfProtectionPolicy.forbidSelf(actor, List.of(user.getId()));
         return user;
+    }
+
+    /** The actor has users.edit and every permission of the role in the assignment's scope (P-024) */
+    private RoleResponse requireChangeable(Actor actor, RoleAssignment assignment) {
+        if (!BranchScopePolicy.allows(actor, CorePermissions.USERS_EDIT, assignment.getBranchId())) {
+            throw FORBIDDEN.exception();
+        }
+        return roles.requireAssignable(actor, assignment.getRoleId(), assignment.getBranchId());
     }
 
     /**

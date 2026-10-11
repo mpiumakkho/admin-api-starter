@@ -4,6 +4,7 @@ import static com.adminstarter.accesscontrol.common.constant.ErrorCode.INVALID_C
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.TWO_FACTOR_MANDATORY;
 
 import com.adminstarter.accesscontrol.AccessControlProperties;
+import com.adminstarter.accesscontrol.authorization.CorePermissions;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.identity.dto.TwoFactorSetupResponse;
 import com.adminstarter.accesscontrol.identity.dto.UserResponse;
@@ -88,7 +89,7 @@ public class TwoFactorService {
      */
     public UserResponse reset(Actor actor, UUID userId, @Nullable String reason) {
         SelfProtectionPolicy.forbidSelf(actor, List.of(userId));
-        access.findManageable(actor, userId);
+        access.findManageable(actor, userId, CorePermissions.USERS_EDIT);
         actor.requireRecentSignIn();
         var why = settings.requireReason("resetSignIn", reason);
         load(userId).turnOffTwoFactor();

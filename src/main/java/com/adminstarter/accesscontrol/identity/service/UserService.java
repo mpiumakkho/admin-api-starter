@@ -4,6 +4,7 @@ import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.identity.dto.AccountSummary;
 import com.adminstarter.accesscontrol.identity.dto.UserResponse;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /** What other modules may ask about users */
@@ -27,4 +28,10 @@ public interface UserService {
      * someone they manage. Refuses with not_found or forbidden otherwise.
      */
     UserResponse requireSecurityManageable(Actor actor, UUID userId);
+
+    /**
+     * The people of the branches where the actor has a branch-scoped permission through roles limited to them (P-024),
+     * such as whose activity they may read; empty when there are none
+     */
+    Set<UUID> peopleOfBranchesWith(Actor actor, String permission);
 }

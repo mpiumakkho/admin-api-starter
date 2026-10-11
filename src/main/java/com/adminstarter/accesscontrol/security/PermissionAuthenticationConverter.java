@@ -1,5 +1,6 @@
 package com.adminstarter.accesscontrol.security;
 
+import com.adminstarter.accesscontrol.authorization.CorePermissions;
 import com.adminstarter.accesscontrol.authorization.service.RoleService;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.identity.dto.AccountSummary;
@@ -63,7 +64,19 @@ public class PermissionAuthenticationConverter implements Converter<Jwt, ActorAu
         var window = settings.reauthWindow();
         var recentSignIn = window.isZero() || now.isBefore(verifiedAt.plus(window));
         var actor = new Actor(userId, sessionId, roleIds, permissions, branchPermissions, setupRequired, recentSignIn);
-        return new ActorAuthentication(actor, jwt);
+        return new ActorAuthentication(actor, jwt, authorities(actor));
+    }
+
+    /**
+     * What @PreAuthorize checks: their permissions for the whole organization, and those of CorePermissions.BRANCH_SCOPED
+     * they have in some branch, which the services then narrow to the people of that branch (P-024)
+     */
+    private static Set<String> authorities(Actor actor) {
+        var authorities = new HashSet<>(actor.permissions());
+        actor.branchPermissions().values().forEach(granted -> granted.stream()
+                .filter(CorePermissions.BRANCH_SCOPED::contains)
+                .forEach(authorities::add));
+        return authorities;
     }
 
     /** Everything these roles allow, together */

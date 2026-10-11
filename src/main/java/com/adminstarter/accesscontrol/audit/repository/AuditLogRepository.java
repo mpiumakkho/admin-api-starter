@@ -2,6 +2,7 @@ package com.adminstarter.accesscontrol.audit.repository;
 
 import com.adminstarter.accesscontrol.audit.entity.AuditLog;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -23,6 +24,16 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
               and (cast(:toTime as Instant) is null or a.occurredAt < :toTime)
             order by a.occurredAt desc, a.id desc""")
     List<AuditLog> findBetween(@Nullable Instant fromTime, @Nullable Instant toTime, Limit limit);
+
+    /** As findBetween, only the entries about these people: their ids as text, as target_id keeps them (P-024) */
+    @Query("""
+            select a from AuditLog a
+            where a.targetId in :targetIds
+              and (cast(:fromTime as Instant) is null or a.occurredAt >= :fromTime)
+              and (cast(:toTime as Instant) is null or a.occurredAt < :toTime)
+            order by a.occurredAt desc, a.id desc""")
+    List<AuditLog> findBetweenAbout(Collection<String> targetIds, @Nullable Instant fromTime, @Nullable Instant toTime,
+            Limit limit);
 
     @Modifying
     @Query("delete from AuditLog a where a.occurredAt < :before")

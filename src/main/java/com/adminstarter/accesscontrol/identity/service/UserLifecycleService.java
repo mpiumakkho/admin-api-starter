@@ -1,6 +1,7 @@
 package com.adminstarter.accesscontrol.identity.service;
 
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.EMAIL_TAKEN;
+import static com.adminstarter.accesscontrol.common.constant.ErrorCode.FORBIDDEN;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.NOT_INVITED;
 
 import com.adminstarter.accesscontrol.authorization.CorePermissions;
@@ -22,6 +23,7 @@ import com.adminstarter.accesscontrol.identity.event.UserPasswordReset;
 import com.adminstarter.accesscontrol.identity.event.UserStatusChanged;
 import com.adminstarter.accesscontrol.identity.event.UserSuspended;
 import com.adminstarter.accesscontrol.identity.event.UserUpdated;
+import com.adminstarter.accesscontrol.identity.policy.BranchScopePolicy;
 import com.adminstarter.accesscontrol.identity.policy.SelfProtectionPolicy;
 import com.adminstarter.accesscontrol.identity.repository.UserCredentialRepository;
 import com.adminstarter.accesscontrol.identity.repository.UserRepository;
@@ -34,6 +36,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.cache.annotation.CacheEvict;
@@ -75,15 +78,18 @@ public class UserLifecycleService {
         this.clock = clock;
     }
 
-    /** Everyone, or only yourself without users.view */
+    /** Everyone with users.view; with it through branches only, their people and yourself (P-024); otherwise yourself */
     @Transactional(readOnly = true)
     public List<UserResponse> list(Actor actor) {
-        if (!actor.has(CorePermissions.USERS_VIEW)) {
+        var everyone = actor.has(CorePermissions.USERS_VIEW);
+        var branches = everyone ? Set.<UUID>of() : BranchScopePolicy.branchesWith(actor, CorePermissions.USERS_VIEW);
+        if (!everyone && branches.isEmpty()) {
             return List.of(mapper.toResponse(access.find(actor.userId())));
         }
         var twoFactor = credentials.findTwoFactorUserIds();
         var roles = resolver.byUser();
         return users.findAllByOrderByIdDesc().stream()
+                .filter(user -> everyone || actor.is(user.getId()) || (user.getBranchId() != null && branches.contains(user.getBranchId())))
                 .map(user -> mapper.toResponse(user, twoFactor.contains(user.getId()), roles.getOrDefault(user.getId(), List.of())))
                 .toList();
     }
@@ -110,13 +116,18 @@ public class UserLifecycleService {
 
     @CacheEvict(cacheNames = UserServiceImpl.ACCOUNTS_CACHE, allEntries = true)
     public UserResponse update(Actor actor, UUID id, UpdateUserRequest request) {
-        var user = access.findManageable(actor, id);
+        var user = access.findManageable(actor, id, CorePermissions.USERS_EDIT);
         var before = Profile.of(user);
         var after = before.with(request);
         var changed = before.changedFields(after);
-        // Without users.edit, people can still change their own name, phone and photo
-        if (!actor.has(CorePermissions.USERS_EDIT)) {
+        // Without users.edit over them, people can still change their own name, phone and photo
+        if (!BranchScopePolicy.allows(actor, CorePermissions.USERS_EDIT, before.branchId())) {
             SelfProtectionPolicy.requireSelfEditable(actor, id, changed);
+        }
+        // Moved only where the actor has users.edit too: a branch administrator keeps people in their branches (P-024)
+        if (!Objects.equals(after.branchId(), before.branchId())
+                && !BranchScopePolicy.allows(actor, CorePermissions.USERS_EDIT, after.branchId())) {
+            throw FORBIDDEN.exception();
         }
         if (request.email() != null) {
             access.requireEmailFree(after.email(), id);
@@ -150,7 +161,8 @@ public class UserLifecycleService {
     public List<UserResponse> setStatus(Actor actor, SetUserStatusRequest request) {
         SelfProtectionPolicy.forbidSelf(actor, request.ids());
         var status = UserStatus.of(request.status());
-        var targets = request.ids().stream().distinct().map(id -> access.findManageable(actor, id)).toList();
+        var targets = request.ids().stream().distinct()
+                .map(id -> access.findManageable(actor, id, CorePermissions.USERS_EDIT)).toList();
         var reason = settings.requireReason("status", request.reason());
         var changed = new ArrayList<User>();
         // Suspending may take away the last person who can run the system
@@ -178,7 +190,8 @@ public class UserLifecycleService {
     @CacheEvict(cacheNames = UserServiceImpl.ACCOUNTS_CACHE, allEntries = true)
     public void delete(Actor actor, DeleteUsersRequest request) {
         SelfProtectionPolicy.forbidSelf(actor, request.ids());
-        var targets = request.ids().stream().distinct().map(id -> access.findManageable(actor, id)).toList();
+        var targets = request.ids().stream().distinct()
+                .map(id -> access.findManageable(actor, id, CorePermissions.USERS_DELETE)).toList();
         actor.requireRecentSignIn();
         var reason = settings.requireReason("delete", request.reason());
         var now = clock.instant();
@@ -202,7 +215,7 @@ public class UserLifecycleService {
      * needs a recent sign-in (P-023) and a reason when the settings say so (P-021)
      */
     public void resetPassword(Actor actor, UUID id, @Nullable String reason) {
-        var user = access.findManageable(actor, id);
+        var user = access.findManageable(actor, id, CorePermissions.USERS_EDIT);
         var self = actor.is(id);
         if (!self) {
             actor.requireRecentSignIn();
@@ -216,7 +229,7 @@ public class UserLifecycleService {
     }
 
     public void resendInvite(Actor actor, UUID id) {
-        var user = access.findManageable(actor, id);
+        var user = access.findManageable(actor, id, CorePermissions.USERS_CREATE);
         if (user.getStatus() != UserStatus.INVITED) {
             throw NOT_INVITED.exception();
         }
@@ -224,11 +237,15 @@ public class UserLifecycleService {
                 user.getFirstName()));
     }
 
+    /** Through branches only, the new user belongs to one of them (P-024) */
     private void requireCanCreate(Actor actor, CreateUserRequest draft) {
+        if (!BranchScopePolicy.allows(actor, CorePermissions.USERS_CREATE, draft.branchId())) {
+            throw FORBIDDEN.exception();
+        }
         if (draft.branchId() != null) {
             branches.requireOpen(draft.branchId());
         }
-        assignments.requireCanGive(actor, draft.roles());
+        assignments.requireCanGive(actor, draft.roles(), draft.branchId());
         access.requireEmailFree(draft.email().trim(), null);
         access.requireEmailDomain(draft.email());
     }

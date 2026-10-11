@@ -9,6 +9,7 @@ import com.adminstarter.accesscontrol.authorization.CorePermissions;
 import com.adminstarter.accesscontrol.authorization.service.RoleService;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.identity.entity.User;
+import com.adminstarter.accesscontrol.identity.policy.BranchScopePolicy;
 import com.adminstarter.accesscontrol.identity.repository.UserRepository;
 import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import java.util.Locale;
@@ -38,12 +39,18 @@ public class UserAccessService {
     }
 
     /**
-     * A user the actor may change: nobody manages someone whose roles, now or scheduled, allow more than their own
-     * (P-019)
+     * A user the actor may change with this permission: they have it for the whole organization, or, for one a role
+     * limited to a branch gives, in the person's branch (P-024); and nobody manages someone whose roles, now or
+     * scheduled, allow more than the actor has in each role's scope (P-019). Yourself is always found: the rules about
+     * yourself are the callers'.
      */
-    public User findManageable(Actor actor, UUID userId) {
+    public User findManageable(Actor actor, UUID userId, String permission) {
         var user = find(userId);
-        if (!actor.is(userId) && !assignments.heldRoleIds(userId).stream().allMatch(roleId -> roles.canManageHolderOf(actor, roleId))) {
+        if (actor.is(userId)) {
+            return user;
+        }
+        if (!BranchScopePolicy.allows(actor, permission, user.getBranchId()) || !assignments.heldBy(userId).stream()
+                .allMatch(item -> roles.canManageHolderOf(actor, item.getRoleId(), item.getBranchId()))) {
             throw FORBIDDEN.exception();
         }
         return user;
@@ -51,13 +58,7 @@ public class UserAccessService {
 
     /** Your own sessions and two-step sign-in, or, with users.edit, those of someone you manage */
     public User findSecurityManageable(Actor actor, UUID userId) {
-        if (actor.is(userId)) {
-            return find(userId);
-        }
-        if (!actor.has(CorePermissions.USERS_EDIT)) {
-            throw FORBIDDEN.exception();
-        }
-        return findManageable(actor, userId);
+        return findManageable(actor, userId, CorePermissions.USERS_EDIT);
     }
 
     public void requireEmailFree(String email, @Nullable UUID exceptUserId) {
