@@ -48,6 +48,8 @@ endpoints:
   - { method: POST,   path: "/api/me/two-factor",                 permission: authenticated, two_factor_setup: true }
   - { method: POST,   path: "/api/me/two-factor/confirm",         permission: authenticated, two_factor_setup: true }
   - { method: POST,   path: "/api/me/two-factor/disable",         permission: authenticated, note: "two_factor_mandatory while the role requires it" }
+  - { method: GET,    path: "/api/me/recovery-codes",             permission: authenticated, note: "P-025" }
+  - { method: POST,   path: "/api/me/recovery-codes",             permission: authenticated, note: "P-025, reauth_required (P-023)" }
   - { method: GET,    path: "/api/users",                         permission: authenticated, note: "only yourself without users.view" }
   - { method: POST,   path: "/api/users",                         permission: users.create }
   - { method: POST,   path: "/api/users/import",                  permission: users.create }
