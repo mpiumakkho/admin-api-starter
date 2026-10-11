@@ -2,7 +2,10 @@ package com.adminstarter.accesscontrol.identity.controller;
 
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.identity.dto.ChangePasswordRequest;
+import com.adminstarter.accesscontrol.identity.dto.RecoveryCodesLeftResponse;
+import com.adminstarter.accesscontrol.identity.dto.RecoveryCodesResponse;
 import com.adminstarter.accesscontrol.identity.dto.TwoFactorCodeRequest;
+import com.adminstarter.accesscontrol.identity.dto.TwoFactorConfirmationResponse;
 import com.adminstarter.accesscontrol.identity.dto.TwoFactorSetupResponse;
 import com.adminstarter.accesscontrol.identity.dto.UserResponse;
 import com.adminstarter.accesscontrol.identity.service.CredentialServiceImpl;
@@ -55,8 +58,21 @@ public class MeController {
 
     @PostMapping("/two-factor/confirm")
     @PreAuthorize("isAuthenticated()")
-    public UserResponse confirmTwoFactor(@AuthenticationPrincipal Actor actor, @Valid @RequestBody TwoFactorCodeRequest request) {
+    public TwoFactorConfirmationResponse confirmTwoFactor(@AuthenticationPrincipal Actor actor,
+            @Valid @RequestBody TwoFactorCodeRequest request) {
         return twoFactor.confirm(actor, request.code());
+    }
+
+    @GetMapping("/recovery-codes")
+    @PreAuthorize("isAuthenticated()")
+    public RecoveryCodesLeftResponse recoveryCodesLeft(@AuthenticationPrincipal Actor actor) {
+        return twoFactor.recoveryCodesLeft(actor);
+    }
+
+    @PostMapping("/recovery-codes")
+    @PreAuthorize("isAuthenticated()")
+    public RecoveryCodesResponse newRecoveryCodes(@AuthenticationPrincipal Actor actor) {
+        return twoFactor.newRecoveryCodes(actor);
     }
 
     @PostMapping("/two-factor/disable")

@@ -13,7 +13,7 @@ public interface CredentialService {
     /** Takes as long as checking a real password, so an unknown email cannot be told apart by timing */
     void checkNoPassword(String password);
 
-    /** A wrong code counts like a wrong password */
+    /** A code from the app, or an unused recovery code, which is then used up (P-025); a wrong one counts like a wrong password */
     boolean checkTwoFactorCode(UUID userId, String code);
 
     /** Sign-in went through: the count of wrong attempts starts again */
