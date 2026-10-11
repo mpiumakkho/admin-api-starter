@@ -24,7 +24,6 @@ import com.adminstarter.accesscontrol.security.jwt.JwtIssuer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,7 +96,7 @@ public class LoginService {
         credentials.signInSucceeded(account.id());
         users.recordSignIn(account.id());
 
-        var now = now();
+        var now = clock.instant();
         var context = RequestContext.currentOrNone();
         var session = sessions.save(new UserSession(account.id(), request.remember(), context.ip(), context.browser(),
                 context.os(), now, now.plus(lifetime(request.remember()))));
@@ -107,7 +106,7 @@ public class LoginService {
     }
 
     public SignIn refresh(@Nullable String presented) {
-        var now = now();
+        var now = clock.instant();
         var token = presented == null ? null : refreshTokens.findByTokenHash(tokens.hash(presented)).orElse(null);
         var session = token == null ? null : sessions.findById(token.getSessionId()).orElse(null);
         if (token == null || session == null || token.expiredAt(now) || !session.openAt(now)) {
@@ -137,7 +136,7 @@ public class LoginService {
         }
         refreshTokens.findByTokenHash(tokens.hash(presented))
                 .flatMap(token -> sessions.findById(token.getSessionId()))
-                .ifPresent(session -> session.end(now()));
+                .ifPresent(session -> session.end(clock.instant()));
     }
 
     private String newRefreshToken(UserSession session, Instant now) {
@@ -157,7 +156,4 @@ public class LoginService {
         return remember ? ttl.rememberTtl() : ttl.refreshTtl();
     }
 
-    private Instant now() {
-        return clock.instant().truncatedTo(ChronoUnit.MILLIS);
-    }
 }

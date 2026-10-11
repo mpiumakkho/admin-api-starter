@@ -9,7 +9,6 @@ import com.adminstarter.accesscontrol.authorization.spi.PermissionDefinition;
 import com.adminstarter.accesscontrol.authorization.spi.RoleDefinition;
 import com.adminstarter.accesscontrol.authorization.spi.RoleTemplate;
 import java.time.Clock;
-import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,7 +67,7 @@ public class PermissionCatalogSynchronizer implements ApplicationRunner {
                 .toList();
         definitions.stream().filter(RoleDefinition::system).forEach(definition -> roles.findByCode(definition.code())
                 .ifPresent(role -> role.redefine(definition.name(), definition.description(), granted(definition, codes),
-                        clock.instant().truncatedTo(ChronoUnit.MILLIS))));
+                        clock.instant())));
         log.info("Permission catalog: {} permissions; roles created: {}", codes.size(), created.isEmpty() ? "none" : created);
     }
 
@@ -92,7 +91,7 @@ public class PermissionCatalogSynchronizer implements ApplicationRunner {
 
     private Role toRole(RoleDefinition definition, List<String> catalog) {
         return new Role(definition.code(), definition.name(), definition.description(), definition.tone(),
-                definition.system(), granted(definition, catalog), clock.instant().truncatedTo(ChronoUnit.MILLIS));
+                definition.system(), granted(definition, catalog), clock.instant());
     }
 
     private static Set<String> granted(RoleDefinition definition, List<String> catalog) {

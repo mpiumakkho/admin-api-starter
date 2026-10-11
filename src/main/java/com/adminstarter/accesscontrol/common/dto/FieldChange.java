@@ -2,6 +2,7 @@ package com.adminstarter.accesscontrol.common.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
+import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -39,5 +40,17 @@ public record FieldChange(
     /** Items added to and removed from a list, such as a role's permissions */
     public static FieldChange list(String field, List<String> added, List<String> removed) {
         return new FieldChange(field, null, null, List.copyOf(added), List.copyOf(removed));
+    }
+
+    /** A value that changed, as text; empty when it is the same */
+    public static Optional<FieldChange> diff(String field, Object from, Object to) {
+        return from.equals(to) ? Optional.empty() : Optional.of(of(field, String.valueOf(from), String.valueOf(to)));
+    }
+
+    /** The items a list gained and lost, each in the order of its list; empty when it has the same items */
+    public static Optional<FieldChange> listDiff(String field, List<String> from, List<String> to) {
+        var added = to.stream().filter(item -> !from.contains(item)).toList();
+        var removed = from.stream().filter(item -> !to.contains(item)).toList();
+        return added.isEmpty() && removed.isEmpty() ? Optional.empty() : Optional.of(list(field, added, removed));
     }
 }

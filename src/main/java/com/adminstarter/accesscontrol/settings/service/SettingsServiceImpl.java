@@ -12,7 +12,6 @@ import com.adminstarter.accesscontrol.settings.entity.AdminSettings;
 import com.adminstarter.accesscontrol.settings.event.SettingsUpdated;
 import com.adminstarter.accesscontrol.settings.repository.AdminSettingsRepository;
 import java.time.Clock;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -88,17 +87,20 @@ public class SettingsServiceImpl implements SettingsService {
 
         // In the order of AdminSettings in models.ts, the two lists last, as items added and removed
         var changes = new ArrayList<FieldChange>();
-        addIfChanged(changes, "defaultRoleId", current.getDefaultRoleId(), defaultRoleId);
-        addIfChanged(changes, "inviteExpiryDays", current.getInviteExpiryDays(), inviteExpiryDays);
-        addIfChanged(changes, "sessionTimeoutMinutes", current.getSessionTimeoutMinutes(), sessionTimeoutMinutes);
-        addIfChanged(changes, "passwordMinLength", current.getPasswordMinLength(), passwordMinLength);
-        addIfChanged(changes, "passwordHistory", current.getPasswordHistory(), passwordHistory);
-        addIfChanged(changes, "activityRetentionDays", current.getActivityRetentionDays(), activityRetentionDays);
-        addIfChanged(changes, "branchesEnabled", current.isBranchesEnabled(), branchesEnabled);
-        addIfListChanged(changes, "allowedDomains", current.getAllowedDomains(), domains);
-        addIfListChanged(changes, "twoFactorRoleIds", strings(current.getTwoFactorRoleIds()), strings(twoFactorRoleIds));
+        FieldChange.diff("defaultRoleId", current.getDefaultRoleId(), defaultRoleId).ifPresent(changes::add);
+        FieldChange.diff("inviteExpiryDays", current.getInviteExpiryDays(), inviteExpiryDays).ifPresent(changes::add);
+        FieldChange.diff("sessionTimeoutMinutes", current.getSessionTimeoutMinutes(), sessionTimeoutMinutes)
+                .ifPresent(changes::add);
+        FieldChange.diff("passwordMinLength", current.getPasswordMinLength(), passwordMinLength).ifPresent(changes::add);
+        FieldChange.diff("passwordHistory", current.getPasswordHistory(), passwordHistory).ifPresent(changes::add);
+        FieldChange.diff("activityRetentionDays", current.getActivityRetentionDays(), activityRetentionDays)
+                .ifPresent(changes::add);
+        FieldChange.diff("branchesEnabled", current.isBranchesEnabled(), branchesEnabled).ifPresent(changes::add);
+        FieldChange.listDiff("allowedDomains", current.getAllowedDomains(), domains).ifPresent(changes::add);
+        FieldChange.listDiff("twoFactorRoleIds", strings(current.getTwoFactorRoleIds()), strings(twoFactorRoleIds))
+                .ifPresent(changes::add);
 
-        var now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
+        var now = clock.instant();
         current.update(defaultRoleId, domains, inviteExpiryDays, sessionTimeoutMinutes, now);
         current.updateAccountRules(twoFactorRoleIds, passwordMinLength, passwordHistory, activityRetentionDays, now);
         current.changeBranchesEnabled(branchesEnabled, now);
@@ -111,7 +113,7 @@ public class SettingsServiceImpl implements SettingsService {
     /** A deleted role requires nothing any more: it comes off twoFactorRoleIds */
     @CacheEvict(cacheNames = TWO_FACTOR_ROLES_CACHE, allEntries = true)
     public void forgetRole(UUID roleId) {
-        load().removeTwoFactorRole(roleId, clock.instant().truncatedTo(ChronoUnit.MILLIS));
+        load().removeTwoFactorRole(roleId, clock.instant());
     }
 
     private AdminSettings load() {
@@ -138,19 +140,6 @@ public class SettingsServiceImpl implements SettingsService {
         return ids.stream().map(UUID::toString).toList();
     }
 
-    private static void addIfChanged(List<FieldChange> changes, String field, Object from, Object to) {
-        if (!from.equals(to)) {
-            changes.add(FieldChange.of(field, String.valueOf(from), String.valueOf(to)));
-        }
-    }
-
-    private static void addIfListChanged(List<FieldChange> changes, String field, List<String> from, List<String> to) {
-        var added = to.stream().filter(item -> !from.contains(item)).toList();
-        var removed = from.stream().filter(item -> !to.contains(item)).toList();
-        if (!added.isEmpty() || !removed.isEmpty()) {
-            changes.add(FieldChange.list(field, added, removed));
-        }
-    }
 
     private static SettingsResponse toResponse(AdminSettings settings) {
         return new SettingsResponse(settings.getDefaultRoleId(), settings.getAllowedDomains(), settings.getInviteExpiryDays(),

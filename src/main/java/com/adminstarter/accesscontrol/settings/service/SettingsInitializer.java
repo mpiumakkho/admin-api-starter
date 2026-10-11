@@ -5,7 +5,6 @@ import com.adminstarter.accesscontrol.authorization.service.RoleService;
 import com.adminstarter.accesscontrol.settings.entity.AdminSettings;
 import com.adminstarter.accesscontrol.settings.repository.AdminSettingsRepository;
 import java.time.Clock;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -48,6 +47,6 @@ public class SettingsInitializer implements ApplicationRunner {
                 .orElseThrow(() -> new IllegalStateException("access-control.bootstrap.default-role names no role: " + code));
         settings.save(new AdminSettings(defaultRole, List.of(), INVITE_EXPIRY_DAYS, SESSION_TIMEOUT_MINUTES, List.of(),
                 PASSWORD_MIN_LENGTH, PASSWORD_HISTORY, ACTIVITY_RETENTION_DAYS,
-                clock.instant().truncatedTo(ChronoUnit.MILLIS)));
+                clock.instant()));
     }
 }
