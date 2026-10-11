@@ -24,7 +24,6 @@ import com.adminstarter.accesscontrol.identity.event.RoleAssignmentRemoved;
 import com.adminstarter.accesscontrol.identity.event.RoleAssignmentUpdated;
 import com.adminstarter.accesscontrol.identity.policy.SelfProtectionPolicy;
 import com.adminstarter.accesscontrol.identity.repository.RoleAssignmentRepository;
-import com.adminstarter.accesscontrol.identity.repository.UserCredentialRepository;
 import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import java.time.Clock;
 import java.time.Duration;
@@ -52,7 +51,6 @@ public class RoleAssignmentService {
     private final RoleAssignmentRepository assignments;
     private final RoleAssignmentResolver resolver;
     private final UserAccessService access;
-    private final UserCredentialRepository credentials;
     private final RoleService roles;
     private final SettingsService settings;
     private final BranchService branches;
@@ -61,12 +59,11 @@ public class RoleAssignmentService {
     private final Clock clock;
 
     public RoleAssignmentService(RoleAssignmentRepository assignments, RoleAssignmentResolver resolver,
-            UserAccessService access, UserCredentialRepository credentials, RoleService roles, SettingsService settings,
-            BranchService branches, UserMapper mapper, ApplicationEventPublisher events, Clock clock) {
+            UserAccessService access, RoleService roles, SettingsService settings, BranchService branches,
+            UserMapper mapper, ApplicationEventPublisher events, Clock clock) {
         this.assignments = assignments;
         this.resolver = resolver;
         this.access = access;
-        this.credentials = credentials;
         this.roles = roles;
         this.settings = settings;
         this.branches = branches;
@@ -80,7 +77,7 @@ public class RoleAssignmentService {
         var user = access.findManageable(actor, request.userId());
         SelfProtectionPolicy.forbidSelf(actor, List.of(user.getId()));
         give(actor, user, request.grant(), resolver.of(user.getId()));
-        return respond(user);
+        return mapper.toResponse(user);
     }
 
     /** Extends, shortens or renews an assignment, or changes its reason */
@@ -89,7 +86,7 @@ public class RoleAssignmentService {
         var assignment = assignments.findById(id).orElseThrow(NOT_FOUND::exception);
         var user = changeable(actor, assignment);
         var role = roles.requireAssignable(actor, assignment.getRoleId());
-        var now = now();
+        var now = clock.instant();
         var changes = new ArrayList<FieldChange>();
         changes.add(FieldChange.set("roleId", assignment.getRoleId().toString()));
         if (request.endsAt() != null) {
@@ -117,7 +114,7 @@ public class RoleAssignmentService {
         if (changes.size() > 1) {
             events.publishEvent(new RoleAssignmentUpdated(actor.userId(), user.getId(), user.getFullName(), List.copyOf(changes)));
         }
-        return respond(user);
+        return mapper.toResponse(user);
     }
 
     @CacheEvict(cacheNames = UserServiceImpl.ACCOUNTS_CACHE, allEntries = true)
@@ -131,7 +128,7 @@ public class RoleAssignmentService {
         requireAdministratorRemains(hadAdministrators);
         events.publishEvent(new RoleAssignmentRemoved(actor.userId(), user.getId(), user.getFullName(),
                 List.of(FieldChange.was("roleId", assignment.getRoleId().toString()))));
-        return respond(user);
+        return mapper.toResponse(user);
     }
 
     /**
@@ -146,7 +143,7 @@ public class RoleAssignmentService {
         var ids = request.userIds().stream().distinct().toList();
         SelfProtectionPolicy.forbidSelf(actor, ids);
         var users = ids.stream().map(id -> access.findManageable(actor, id)).toList();
-        var now = now();
+        var now = clock.instant();
         var changed = new ArrayList<User>();
         if (request.add() != null) {
             var roleId = request.add().roleId();
@@ -178,7 +175,7 @@ public class RoleAssignmentService {
             assignments.flush();
             requireAdministratorRemains(hadAdministrators);
         }
-        return changed.stream().map(this::respond).toList();
+        return changed.stream().map(mapper::toResponse).toList();
     }
 
     /** A new user's first roles; none gives the settings' default role, for good */
@@ -246,7 +243,7 @@ public class RoleAssignmentService {
         if (branchId != null) {
             branches.requireOpen(branchId);
         }
-        var now = now();
+        var now = clock.instant();
         var start = grant.startsAt() == null ? now : latest(millis(grant.startsAt()), now);
         var end = grant.endsAt() == null ? null : millis(grant.endsAt());
         if (end != null && !end.isAfter(start)) {
@@ -277,20 +274,12 @@ public class RoleAssignmentService {
         }
     }
 
-    private UserResponse respond(User user) {
-        return mapper.toResponse(user, credentials.findById(user.getId()).map(c -> c.isTwoFactorOn()).orElse(false));
-    }
-
     /** A role's rules: with maxDays, it must end at most that many days after it starts */
     private static void requireWithinRules(RoleResponse role, Instant start, @Nullable Instant end) {
         var maxDays = role.assignment().maxDays();
         if (maxDays != null && (end == null || Duration.between(start, end).compareTo(Duration.ofDays(maxDays)) > 0)) {
             throw ASSIGNMENT_TOO_LONG.exception();
         }
-    }
-
-    private Instant now() {
-        return millis(clock.instant());
     }
 
     private static Instant millis(Instant instant) {

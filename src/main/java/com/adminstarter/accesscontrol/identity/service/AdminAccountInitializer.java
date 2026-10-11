@@ -10,7 +10,6 @@ import com.adminstarter.accesscontrol.identity.repository.RoleAssignmentReposito
 import com.adminstarter.accesscontrol.identity.repository.UserRepository;
 import java.security.SecureRandom;
 import java.time.Clock;
-import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,7 +57,7 @@ public class AdminAccountInitializer implements ApplicationRunner {
         var email = properties.bootstrap().adminEmail();
         var configured = properties.bootstrap().adminPassword();
         var password = configured == null || configured.isBlank() ? randomPassword() : configured;
-        var now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
+        var now = clock.instant();
         var admin = users.save(new User("Admin", "", email, "", "Operations", "", UserStatus.ACTIVE, now));
         // For good: someone must always be able to run the system (P-019)
         assignments.save(new RoleAssignment(admin.getId(), role, null, now, null, "", null, now));

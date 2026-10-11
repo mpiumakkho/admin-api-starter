@@ -16,8 +16,6 @@ import com.adminstarter.accesscontrol.branch.spi.BranchMemberProvider;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.common.dto.FieldChange;
 import java.time.Clock;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -56,7 +54,7 @@ public class BranchManagementService {
         if (branches.existsByCode(code)) {
             throw CODE_TAKEN.exception();
         }
-        var branch = branches.save(new Branch(code, request.name().trim(), now()));
+        var branch = branches.save(new Branch(code, request.name().trim(), clock.instant()));
         events.publishEvent(new BranchCreated(actor.userId(), branch.getId(), branch.getName(), List.of(
                 FieldChange.set("code", branch.getCode()),
                 FieldChange.set("name", branch.getName()))));
@@ -73,10 +71,10 @@ public class BranchManagementService {
         }
         // In the order of Branch in models.ts
         var changes = new ArrayList<FieldChange>();
-        addIfChanged(changes, "code", branch.getCode(), code);
-        addIfChanged(changes, "name", branch.getName(), name);
-        addIfChanged(changes, "active", String.valueOf(branch.isActive()), String.valueOf(active));
-        branch.update(code, name, active, now());
+        FieldChange.diff("code", branch.getCode(), code).ifPresent(changes::add);
+        FieldChange.diff("name", branch.getName(), name).ifPresent(changes::add);
+        FieldChange.diff("active", branch.isActive(), active).ifPresent(changes::add);
+        branch.update(code, name, active, clock.instant());
         if (!changes.isEmpty()) {
             events.publishEvent(new BranchUpdated(actor.userId(), id, name, List.copyOf(changes)));
         }
@@ -97,19 +95,9 @@ public class BranchManagementService {
         branches.flush();
     }
 
-    private Instant now() {
-        return clock.instant().truncatedTo(ChronoUnit.MILLIS);
-    }
-
     /** Trimmed and upper-case, as codes are kept */
     private static String code(String code) {
         return code.trim().toUpperCase(Locale.ROOT);
-    }
-
-    private static void addIfChanged(List<FieldChange> changes, String field, String from, String to) {
-        if (!from.equals(to)) {
-            changes.add(FieldChange.of(field, from, to));
-        }
     }
 
     private static BranchResponse toResponse(Branch branch) {

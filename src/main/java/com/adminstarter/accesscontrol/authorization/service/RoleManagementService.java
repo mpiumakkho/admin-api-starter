@@ -22,8 +22,6 @@ import com.adminstarter.accesscontrol.authorization.spi.RoleHolderProvider;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.common.dto.FieldChange;
 import java.time.Clock;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -73,9 +71,9 @@ public class RoleManagementService {
             throw FORBIDDEN.exception();
         }
         var role = roles.save(new Role(null, request.name(), Objects.requireNonNullElse(request.description(), ""),
-                Objects.requireNonNullElse(request.tone(), DEFAULT_TONE), false, granted, now()));
+                Objects.requireNonNullElse(request.tone(), DEFAULT_TONE), false, granted, clock.instant()));
         if (request.assignment() != null) {
-            role.changeAssignmentRules(request.assignment().maxDays(), request.assignment().reasonRequired(), now());
+            role.changeAssignmentRules(request.assignment().maxDays(), request.assignment().reasonRequired(), clock.instant());
         }
         var order = mapper.order();
         events.publishEvent(new RoleCreated(actor.userId(), role.getId(), role.getName(),
@@ -113,17 +111,19 @@ public class RoleManagementService {
         var maxDays = request.assignment() == null ? role.getAssignmentMaxDays() : request.assignment().maxDays();
         var reasonRequired = request.assignment() == null ? role.isAssignmentReasonRequired() : request.assignment().reasonRequired();
         var changes = new ArrayList<FieldChange>();
-        addIfChanged(changes, "name", role.getName(), name);
-        addIfChanged(changes, "description", role.getDescription(), description);
-        addIfChanged(changes, "tone", role.getTone(), tone);
-        addIfChanged(changes, "maxDays", String.valueOf(role.getAssignmentMaxDays()), String.valueOf(maxDays));
-        addIfChanged(changes, "reasonRequired", String.valueOf(role.isAssignmentReasonRequired()), String.valueOf(reasonRequired));
+        FieldChange.diff("name", role.getName(), name).ifPresent(changes::add);
+        FieldChange.diff("description", role.getDescription(), description).ifPresent(changes::add);
+        FieldChange.diff("tone", role.getTone(), tone).ifPresent(changes::add);
+        // No limit is logged as "null"
+        FieldChange.diff("maxDays", String.valueOf(role.getAssignmentMaxDays()), String.valueOf(maxDays))
+                .ifPresent(changes::add);
+        FieldChange.diff("reasonRequired", role.isAssignmentReasonRequired(), reasonRequired).ifPresent(changes::add);
         if (!added.isEmpty() || !removed.isEmpty()) {
             var order = mapper.order();
             changes.add(FieldChange.list("permissions", RoleMapper.ordered(added, order), RoleMapper.ordered(removed, order)));
         }
-        role.update(name, description, tone, granted, now());
-        role.changeAssignmentRules(maxDays, reasonRequired, now());
+        role.update(name, description, tone, granted, clock.instant());
+        role.changeAssignmentRules(maxDays, reasonRequired, clock.instant());
         events.publishEvent(new RoleUpdated(actor.userId(), id, name, List.copyOf(changes)));
         return mapper.toResponse(role);
     }
@@ -160,16 +160,6 @@ public class RoleManagementService {
             throw INVALID_REQUEST.exception();
         }
         return Set.copyOf(codes);
-    }
-
-    private Instant now() {
-        return clock.instant().truncatedTo(ChronoUnit.MILLIS);
-    }
-
-    private static void addIfChanged(List<FieldChange> changes, String field, String from, String to) {
-        if (!from.equals(to)) {
-            changes.add(FieldChange.of(field, from, to));
-        }
     }
 
     private static Set<String> difference(Set<String> left, Set<String> right) {

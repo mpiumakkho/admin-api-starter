@@ -12,8 +12,6 @@ import com.adminstarter.accesscontrol.identity.service.UserService;
 import com.adminstarter.accesscontrol.security.SessionChecker;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -46,7 +44,7 @@ public class SessionService implements SessionChecker {
 
     @Override
     public boolean isOpen(UUID sessionId, UUID userId) {
-        var now = now();
+        var now = clock.instant();
         var session = sessions.findById(sessionId).orElse(null);
         if (session == null || !session.getUserId().equals(userId) || !session.openAt(now)) {
             return false;
@@ -60,7 +58,7 @@ public class SessionService implements SessionChecker {
     @Transactional(readOnly = true)
     public List<UserSessionResponse> list(Actor actor, UUID userId) {
         users.requireSecurityManageable(actor, userId);
-        return sessions.findOpen(userId, now()).stream()
+        return sessions.findOpen(userId, clock.instant()).stream()
                 .map(session -> new UserSessionResponse(session.getId(), session.getUserId(), session.getCreatedAt(),
                         session.getLastSeenAt(), session.getIp(), session.getBrowser(), session.getOs(),
                         session.getId().equals(actor.sessionId())))
@@ -68,7 +66,7 @@ public class SessionService implements SessionChecker {
     }
 
     public void end(Actor actor, UUID sessionId) {
-        var now = now();
+        var now = clock.instant();
         var session = sessions.findById(sessionId).filter(candidate -> candidate.openAt(now)).orElseThrow(NOT_FOUND::exception);
         var user = users.requireSecurityManageable(actor, session.getUserId());
         session.end(now);
@@ -86,14 +84,10 @@ public class SessionService implements SessionChecker {
 
     /** Ends a user's open sessions but {@code keep}, answering their device labels */
     List<String> endOpen(UUID userId, @Nullable UUID keep) {
-        var now = now();
+        var now = clock.instant();
         var ended = sessions.findOpen(userId, now).stream().filter(session -> !session.getId().equals(keep)).toList();
         ended.forEach(session -> session.end(now));
         return ended.stream().map(UserSession::getDeviceLabel).toList();
-    }
-
-    private Instant now() {
-        return clock.instant().truncatedTo(ChronoUnit.MILLIS);
     }
 
     private static String fullName(UserResponse user) {

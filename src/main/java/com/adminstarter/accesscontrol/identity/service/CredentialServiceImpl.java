@@ -12,8 +12,6 @@ import com.adminstarter.accesscontrol.identity.repository.PreviousPasswordReposi
 import com.adminstarter.accesscontrol.identity.repository.UserCredentialRepository;
 import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import java.time.Clock;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -57,7 +55,7 @@ public class CredentialServiceImpl implements CredentialService {
     public boolean checkPassword(UUID userId, String password) {
         var credential = credentials.findById(userId).orElse(null);
         var hash = credential == null ? null : credential.getPasswordHash();
-        if (credential == null || hash == null || credential.lockedAt(now())) {
+        if (credential == null || hash == null || credential.lockedAt(clock.instant())) {
             checkNoPassword(password);
             return false;
         }
@@ -121,7 +119,7 @@ public class CredentialServiceImpl implements CredentialService {
     void create(UUID userId, @Nullable String password) {
         var credential = new UserCredential(userId);
         if (password != null) {
-            credential.changePassword(encoder.encode(password), now());
+            credential.changePassword(encoder.encode(password), clock.instant());
         }
         credentials.save(credential);
     }
@@ -138,7 +136,7 @@ public class CredentialServiceImpl implements CredentialService {
                 earlier.stream().map(PreviousPassword::getPasswordHash).toList(), rules.passwordHistory());
         PasswordPolicy.checkNotReused(password, recent, encoder::matches);
         keepInHistory(credential, earlier);
-        credential.changePassword(encoder.encode(password), now());
+        credential.changePassword(encoder.encode(password), clock.instant());
     }
 
     /**
@@ -151,11 +149,11 @@ public class CredentialServiceImpl implements CredentialService {
             return;
         }
         previousPasswords.deleteAll(PasswordPolicy.beyondKept(earlier));
-        previousPasswords.save(new PreviousPassword(credential.getUserId(), hash, now()));
+        previousPasswords.save(new PreviousPassword(credential.getUserId(), hash, clock.instant()));
     }
 
     private void failed(UserCredential credential) {
-        var lockUntil = lockoutPolicy.lockFor(credential.getFailedAttempts() + 1).map(now()::plus).orElse(null);
+        var lockUntil = lockoutPolicy.lockFor(credential.getFailedAttempts() + 1).map(clock.instant()::plus).orElse(null);
         credential.failed(lockUntil);
     }
 
@@ -163,7 +161,4 @@ public class CredentialServiceImpl implements CredentialService {
         return credentials.findById(userId).orElseGet(() -> credentials.save(new UserCredential(userId)));
     }
 
-    private Instant now() {
-        return clock.instant().truncatedTo(ChronoUnit.MILLIS);
-    }
 }

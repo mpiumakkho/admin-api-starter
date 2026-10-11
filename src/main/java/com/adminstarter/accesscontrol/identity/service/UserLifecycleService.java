@@ -26,8 +26,6 @@ import com.adminstarter.accesscontrol.identity.policy.SelfProtectionPolicy;
 import com.adminstarter.accesscontrol.identity.repository.UserCredentialRepository;
 import com.adminstarter.accesscontrol.identity.repository.UserRepository;
 import java.time.Clock;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -78,7 +76,7 @@ public class UserLifecycleService {
     @Transactional(readOnly = true)
     public List<UserResponse> list(Actor actor) {
         if (!actor.has(CorePermissions.USERS_VIEW)) {
-            return List.of(respond(access.find(actor.userId())));
+            return List.of(mapper.toResponse(access.find(actor.userId())));
         }
         var twoFactor = credentials.findTwoFactorUserIds();
         var roles = resolver.byUser();
@@ -89,7 +87,7 @@ public class UserLifecycleService {
 
     public UserResponse create(Actor actor, CreateUserRequest request) {
         requireCanCreate(actor, request);
-        return respond(add(actor, request));
+        return mapper.toResponse(add(actor, request));
     }
 
     /** All or none: every row is checked before any is added, and one refusal refuses the whole import */
@@ -101,7 +99,7 @@ public class UserLifecycleService {
                 throw EMAIL_TAKEN.exception();
             }
         }
-        return request.users().stream().map(draft -> respond(add(actor, draft))).toList();
+        return request.users().stream().map(draft -> mapper.toResponse(add(actor, draft))).toList();
     }
 
     @CacheEvict(cacheNames = UserServiceImpl.ACCOUNTS_CACHE, allEntries = true)
@@ -129,8 +127,8 @@ public class UserLifecycleService {
         // A status change may take away the last person who can run the system
         assignments.keepingAdministrator(() -> {
             user.update(after.firstName(), after.lastName(), after.email(), after.phone(), after.department(),
-                    after.avatar(), after.status(), now());
-            user.moveToBranch(after.branchId(), now());
+                    after.avatar(), after.status(), clock.instant());
+            user.moveToBranch(after.branchId(), clock.instant());
             users.flush();
             return user;
         });
@@ -138,7 +136,7 @@ public class UserLifecycleService {
         if (statusChanged && after.status() == UserStatus.SUSPENDED) {
             events.publishEvent(new UserSuspended(id));
         }
-        return respond(user);
+        return mapper.toResponse(user);
     }
 
     /** Suspends or activates several people; answers with the ones that changed */
@@ -155,7 +153,7 @@ public class UserLifecycleService {
                     continue;
                 }
                 var from = user.getStatus();
-                user.changeStatus(status, now());
+                user.changeStatus(status, clock.instant());
                 events.publishEvent(new UserStatusChanged(actor.userId(), user.getId(), user.getFullName(), from.value(),
                         status.value()));
                 if (status == UserStatus.SUSPENDED) {
@@ -166,7 +164,7 @@ public class UserLifecycleService {
             users.flush();
             return changed;
         });
-        return changed.stream().map(this::respond).toList();
+        return changed.stream().map(mapper::toResponse).toList();
     }
 
     /** Their sessions, credentials and email links go with them (on delete cascade); the activity log keeps their name */
@@ -224,8 +222,8 @@ public class UserLifecycleService {
         var status = UserStatus.of(draft.status());
         var draftUser = new User(draft.firstName(), draft.lastName(), draft.email().trim(),
                 Objects.requireNonNullElse(draft.phone(), ""), draft.department(),
-                Objects.requireNonNullElse(draft.avatar(), ""), status, now());
-        draftUser.moveToBranch(draft.branchId(), now());
+                Objects.requireNonNullElse(draft.avatar(), ""), status, clock.instant());
+        draftUser.moveToBranch(draft.branchId(), clock.instant());
         var user = users.save(draftUser);
         credentialService.create(user.getId(), null);
         var changes = new ArrayList<FieldChange>();
@@ -239,14 +237,6 @@ public class UserLifecycleService {
                 user.getFirstName(), status == UserStatus.INVITED, List.copyOf(changes)));
         assignments.giveFirstRoles(actor, user, draft.roles());
         return user;
-    }
-
-    private UserResponse respond(User user) {
-        return mapper.toResponse(user, credentials.findById(user.getId()).map(c -> c.isTwoFactorOn()).orElse(false));
-    }
-
-    private Instant now() {
-        return clock.instant().truncatedTo(ChronoUnit.MILLIS);
     }
 
     /** The fields a request may set, before or after a change, in the order the activity log lists them */

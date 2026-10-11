@@ -6,7 +6,6 @@ import com.adminstarter.accesscontrol.identity.repository.UserRepository;
 import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +43,7 @@ public class RoleAssignmentExpiryJob {
     @Scheduled(fixedDelayString = "PT5M", initialDelayString = "PT1M")
     @Transactional
     public void run() {
-        var now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
+        var now = clock.instant();
         var logged = 0;
         for (var assignment : assignments.findEndedUnlogged(now)) {
             if (assignments.markExpiryLogged(assignment.getId(), now) == 0) {

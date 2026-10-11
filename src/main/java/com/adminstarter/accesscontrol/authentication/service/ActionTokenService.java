@@ -14,7 +14,6 @@ import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -53,13 +52,13 @@ public class ActionTokenService {
 
     /** Valid for the settings' inviteExpiryDays */
     public void issueInvitation(UUID userId, String email, String firstName) {
-        var expiresAt = now().plus(Duration.ofDays(settings.current().inviteExpiryDays()));
+        var expiresAt = clock.instant().plus(Duration.ofDays(settings.current().inviteExpiryDays()));
         var token = issue(userId, ActionTokenType.INVITE, expiresAt);
         events.publishEvent(new InvitationIssued(userId, email, firstName, token, expiresAt));
     }
 
     public void issuePasswordReset(UUID userId, String email, String firstName) {
-        var expiresAt = now().plus(resetLinkTtl);
+        var expiresAt = clock.instant().plus(resetLinkTtl);
         var token = issue(userId, ActionTokenType.PASSWORD_RESET, expiresAt);
         events.publishEvent(new PasswordResetIssued(userId, email, firstName, token, expiresAt));
     }
@@ -91,7 +90,7 @@ public class ActionTokenService {
     }
 
     private String issue(UUID userId, ActionTokenType type, Instant expiresAt) {
-        var now = now();
+        var now = clock.instant();
         actionTokens.findByUserIdAndTypeAndUsedAtIsNull(userId, type).forEach(older -> older.use(now));
         var value = tokens.newToken();
         actionTokens.save(new ActionToken(userId, type, tokens.hash(value), now, expiresAt));
@@ -100,7 +99,7 @@ public class ActionTokenService {
 
     /** The user the link is for; invalid_token when it is unknown, used, expired or of another kind */
     private UUID use(String token, ActionTokenType type) {
-        var now = now();
+        var now = clock.instant();
         var actionToken = actionTokens.findByTokenHash(tokens.hash(token))
                 .filter(candidate -> candidate.getType() == type && candidate.usableAt(now))
                 .orElseThrow(INVALID_TOKEN::exception);
@@ -108,7 +107,4 @@ public class ActionTokenService {
         return actionToken.getUserId();
     }
 
-    private Instant now() {
-        return clock.instant().truncatedTo(ChronoUnit.MILLIS);
-    }
 }
