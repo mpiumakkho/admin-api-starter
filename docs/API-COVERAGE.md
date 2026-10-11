@@ -5,9 +5,9 @@
 สัญญาของ API อยู่ที่ [`API.md`](https://github.com/mpiumakkho/admin-ng-starter/blob/main/src/app/user-management/API.md) ใน admin-ng-starter (ในเครื่อง: `../admin-ng-starter/src/app/user-management/API.md`)
 ไฟล์นี้บอกว่า server ตัวนี้ทำ endpoint ไหนแล้ว ตรวจสิทธิ์ตรงกับสัญญาไหม และมี integration test ไหนเรียกบ้าง
 
-- **Endpoint:** ทำแล้ว 44 จาก 44
-- **มี integration test เรียกตรง:** 42 จาก 44
-- **Error code:** สัญญามี 29 ตัว, `ErrorCode` มี 29 ตัว
+- **Endpoint:** ทำแล้ว 45 จาก 45
+- **มี integration test เรียกตรง:** 44 จาก 45
+- **Error code:** สัญญามี 30 ตัว, `ErrorCode` มี 30 ตัว
 
 สถานะ: ✅ ทำแล้ว ❌ ยังไม่มีใน controller
 
@@ -22,7 +22,7 @@ Integration test: class ที่เรียก endpoint นั้นตรง�
 | ✅ | `POST /auth/login` | — | — |   | `AuthController.login` | ApiIntegrationTest |
 | ✅ | `POST /auth/refresh` | — | — |   | `AuthController.refresh` | ApiIntegrationTest |
 | ✅ | `POST /auth/logout` | — | — |   | `AuthController.logout` | AuthenticationFlowIT |
-| ✅ | `GET /me` | — | `isAuthenticated()` |   | `MeController.get` | AccountRulesIT, AuthenticationFlowIT |
+| ✅ | `GET /me` | — | `isAuthenticated()` |   | `MeController.get` | AccountRulesIT, AuthenticationFlowIT, ReauthenticationIT |
 | ✅ | `POST /me/password` | — | `isAuthenticated()` |   | `MeController.changePassword` | AccountRulesIT, AuthenticationFlowIT |
 
 ## Links in emails
@@ -43,35 +43,41 @@ Integration test: class ที่เรียก endpoint นั้นตรง�
 
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
-| ✅ | `GET /users/:id/sessions` | — | `isAuthenticated()` |   | `SessionController.list` | AccessRulesIT, AuthenticationFlowIT, BranchesIT, RoleAssignmentsIT |
-| ✅ | `DELETE /sessions/:id` | — | `isAuthenticated()` |   | `SessionController.end` | — |
-| ✅ | `POST /users/:id/sessions/end` | — | `isAuthenticated()` |   | `SessionController.endAll` | AuthenticationFlowIT, ReasonsIT |
-| ✅ | `POST /me/two-factor` | — | `isAuthenticated()` |   | `MeController.startTwoFactor` | AccountRulesIT, AuthenticationFlowIT |
-| ✅ | `POST /me/two-factor/confirm` | — | `isAuthenticated()` |   | `MeController.confirmTwoFactor` | AccountRulesIT, AuthenticationFlowIT |
+| ✅ | `GET /users/:id/sessions` | — | `isAuthenticated()` |   | `SessionController.list` | AccessRulesIT, AuthenticationFlowIT, BranchesIT, ReauthenticationIT, RoleAssignmentsIT |
+| ✅ | `DELETE /sessions/:id` | — | `isAuthenticated()` |   | `SessionController.end` | ReauthenticationIT |
+| ✅ | `POST /users/:id/sessions/end` | — | `isAuthenticated()` |   | `SessionController.endAll` | AuthenticationFlowIT, ReasonsIT, ReauthenticationIT |
+| ✅ | `POST /me/two-factor` | — | `isAuthenticated()` |   | `MeController.startTwoFactor` | AccountRulesIT, AuthenticationFlowIT, ReauthenticationIT |
+| ✅ | `POST /me/two-factor/confirm` | — | `isAuthenticated()` |   | `MeController.confirmTwoFactor` | AccountRulesIT, AuthenticationFlowIT, ReauthenticationIT |
 | ✅ | `POST /me/two-factor/disable` | — | `isAuthenticated()` |   | `MeController.disableTwoFactor` | AccountRulesIT |
-| ✅ | `POST /users/:id/two-factor/reset` | — | `hasAuthority('users.edit')` |   | `UserController.resetTwoFactor` | AccountRulesIT, AuthenticationFlowIT |
+| ✅ | `POST /users/:id/two-factor/reset` | — | `hasAuthority('users.edit')` |   | `UserController.resetTwoFactor` | AccountRulesIT, AuthenticationFlowIT, ReauthenticationIT |
+
+## Confirming who you are
+
+| | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
+| --- | --- | --- | --- | --- | --- | --- |
+| ✅ | `POST /me/reauthenticate` | — | `isAuthenticated()` |   | `SessionController.reauthenticate` | ReauthenticationIT |
 
 ## Users
 
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
 | ✅ | `GET /users` | `users.view`; without it, only the signed-in user | `isAuthenticated()` | ✅ service | `UserController.list` | AccessRulesIT, AccountRulesIT, ApiIntegrationTest, AuthenticationFlowIT, BranchesIT, RoleAssignmentsIT |
-| ✅ | `POST /users` | `users.create` | `hasAuthority('users.create')` | ✅ | `UserController.create` | AccessRulesIT, AccountRulesIT, ApiIntegrationTest, AuthenticationFlowIT, BranchesIT, RoleAssignmentsIT, RoleConflictsIT |
-| ✅ | `POST /users/import` | `users.create` | `hasAuthority('users.create')` | ✅ | `UserController.importUsers` | AccessRulesIT |
+| ✅ | `POST /users` | `users.create` | `hasAuthority('users.create')` | ✅ | `UserController.create` | AccessRulesIT, AccountRulesIT, ApiIntegrationTest, AuthenticationFlowIT, BranchesIT, ReauthenticationIT, RoleAssignmentsIT, RoleConflictsIT |
+| ✅ | `POST /users/import` | `users.create` | `hasAuthority('users.create')` | ✅ | `UserController.importUsers` | AccessRulesIT, ReauthenticationIT |
 | ✅ | `PATCH /users/:id` | `users.edit`; without it, people may change their own `firstName`, `lastName`, `phone` and `avatar` | `isAuthenticated()` | ✅ service | `UserController.update` | AccessRulesIT, AccountRulesIT, BranchesIT |
-| ✅ | `POST /users/status` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `UserController.setStatus` | AccessRulesIT, AuthenticationFlowIT, ReasonsIT, RoleAssignmentsIT |
-| ✅ | `POST /users/delete` | `users.delete` | `hasAuthority('users.delete')` | ✅ | `UserController.delete` | AccessRulesIT, RoleAssignmentsIT |
-| ✅ | `POST /users/:id/reset-password` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `UserController.resetPassword` | AccessRulesIT, AccountRulesIT |
+| ✅ | `POST /users/status` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `UserController.setStatus` | AccessRulesIT, AuthenticationFlowIT, ReasonsIT, ReauthenticationIT, RoleAssignmentsIT |
+| ✅ | `POST /users/delete` | `users.delete` | `hasAuthority('users.delete')` | ✅ | `UserController.delete` | AccessRulesIT, ReauthenticationIT, RoleAssignmentsIT |
+| ✅ | `POST /users/:id/reset-password` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `UserController.resetPassword` | AccessRulesIT, AccountRulesIT, ReauthenticationIT |
 | ✅ | `POST /users/:id/resend-invite` | `users.create` | `hasAuthority('users.create')` | ✅ | `UserController.resendInvite` | — |
 
 ## Role assignments
 
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
-| ✅ | `POST /role-assignments` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `RoleAssignmentController.assign` | AccessRulesIT, BranchesIT, ReasonsIT, RoleAssignmentsIT, RoleConflictsIT |
-| ✅ | `PATCH /role-assignments/:id` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `RoleAssignmentController.update` | RoleAssignmentsIT, RoleConflictsIT |
-| ✅ | `DELETE /role-assignments/:id` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `RoleAssignmentController.remove` | BranchesIT, ReasonsIT, RoleAssignmentsIT |
-| ✅ | `POST /role-assignments/batch` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `RoleAssignmentController.batch` | AccessRulesIT, BranchesIT, ReasonsIT, RoleAssignmentsIT, RoleConflictsIT |
+| ✅ | `POST /role-assignments` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `RoleAssignmentController.assign` | AccessRulesIT, BranchesIT, ReasonsIT, ReauthenticationIT, RoleAssignmentsIT, RoleConflictsIT |
+| ✅ | `PATCH /role-assignments/:id` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `RoleAssignmentController.update` | ReauthenticationIT, RoleAssignmentsIT, RoleConflictsIT |
+| ✅ | `DELETE /role-assignments/:id` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `RoleAssignmentController.remove` | BranchesIT, ReasonsIT, ReauthenticationIT, RoleAssignmentsIT |
+| ✅ | `POST /role-assignments/batch` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `RoleAssignmentController.batch` | AccessRulesIT, BranchesIT, ReasonsIT, ReauthenticationIT, RoleAssignmentsIT, RoleConflictsIT |
 
 ## Branches
 
@@ -87,9 +93,9 @@ Integration test: class ที่เรียก endpoint นั้นตรง�
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
 | ✅ | `GET /roles` | Anyone signed in | `isAuthenticated()` |   | `RoleController.list` | AccessRulesIT, AccountRulesIT, ApiIntegrationTest |
-| ✅ | `POST /roles` | `roles.manage` | `hasAuthority('roles.manage')` | ✅ | `RoleController.create` | AccessRulesIT, AccountRulesIT, RoleAssignmentsIT, RoleConflictsIT |
-| ✅ | `PATCH /roles/:id` | `roles.manage` | `hasAuthority('roles.manage')` | ✅ | `RoleController.update` | RoleAssignmentsIT |
-| ✅ | `DELETE /roles/:id` | `roles.manage` | `hasAuthority('roles.manage')` | ✅ | `RoleController.delete` | AccessRulesIT, AccountRulesIT, LiveUpdateIT, RoleAssignmentsIT, RoleConflictsIT |
+| ✅ | `POST /roles` | `roles.manage` | `hasAuthority('roles.manage')` | ✅ | `RoleController.create` | AccessRulesIT, AccountRulesIT, ReauthenticationIT, RoleAssignmentsIT, RoleConflictsIT |
+| ✅ | `PATCH /roles/:id` | `roles.manage` | `hasAuthority('roles.manage')` | ✅ | `RoleController.update` | ReauthenticationIT, RoleAssignmentsIT |
+| ✅ | `DELETE /roles/:id` | `roles.manage` | `hasAuthority('roles.manage')` | ✅ | `RoleController.delete` | AccessRulesIT, AccountRulesIT, LiveUpdateIT, ReauthenticationIT, RoleAssignmentsIT, RoleConflictsIT |
 
 ## Conflicting roles
 
@@ -104,14 +110,14 @@ Integration test: class ที่เรียก endpoint นั้นตรง�
 
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
-| ✅ | `GET /activity` | `activity.view`; without it, an empty list | `isAuthenticated()` | ✅ service | `ActivityController.list` | AccessRulesIT, AccountRulesIT, BranchesIT, ReasonsIT, RoleAssignmentsIT, RoleConflictsIT |
+| ✅ | `GET /activity` | `activity.view`; without it, an empty list | `isAuthenticated()` | ✅ service | `ActivityController.list` | AccessRulesIT, AccountRulesIT, BranchesIT, ReasonsIT, ReauthenticationIT, RoleAssignmentsIT, RoleConflictsIT |
 
 ## Settings
 
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
 | ✅ | `GET /settings` | Anyone signed in | `isAuthenticated()` |   | `SettingsController.get` | AccessRulesIT, AccountRulesIT, BranchesIT, ReasonsIT |
-| ✅ | `PATCH /settings` | `settings.manage` | `hasAuthority('settings.manage')` | ✅ | `SettingsController.update` | AccessRulesIT, AccountRulesIT, BranchesIT, LiveUpdateIT, ReasonsIT |
+| ✅ | `PATCH /settings` | `settings.manage` | `hasAuthority('settings.manage')` | ✅ | `SettingsController.update` | AccessRulesIT, AccountRulesIT, BranchesIT, LiveUpdateIT, ReasonsIT, ReauthenticationIT |
 
 ## Signed-in devices and two-step sign-in
 
