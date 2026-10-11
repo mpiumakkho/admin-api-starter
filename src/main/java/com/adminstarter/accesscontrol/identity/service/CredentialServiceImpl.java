@@ -5,6 +5,7 @@ import static com.adminstarter.accesscontrol.common.constant.ErrorCode.INVALID_C
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.identity.entity.PreviousPassword;
 import com.adminstarter.accesscontrol.identity.entity.UserCredential;
+import com.adminstarter.accesscontrol.identity.event.RecoveryCodeUsed;
 import com.adminstarter.accesscontrol.identity.event.UserPasswordChanged;
 import com.adminstarter.accesscontrol.identity.policy.LockoutPolicy;
 import com.adminstarter.accesscontrol.identity.policy.PasswordPolicy;
@@ -31,6 +32,7 @@ public class CredentialServiceImpl implements CredentialService {
     private final PasswordEncoder encoder;
     private final LockoutPolicy lockoutPolicy;
     private final TotpService totp;
+    private final RecoveryCodeService recoveryCodes;
     private final ApplicationEventPublisher events;
     private final Clock clock;
     /** Checked against when there is no real hash, to spend the same time */
@@ -38,7 +40,7 @@ public class CredentialServiceImpl implements CredentialService {
 
     public CredentialServiceImpl(UserCredentialRepository credentials, PreviousPasswordRepository previousPasswords,
             UserAccessService access, SettingsService settings, PasswordEncoder encoder, LockoutPolicy lockoutPolicy,
-            TotpService totp, ApplicationEventPublisher events, Clock clock) {
+            TotpService totp, RecoveryCodeService recoveryCodes, ApplicationEventPublisher events, Clock clock) {
         this.credentials = credentials;
         this.previousPasswords = previousPasswords;
         this.access = access;
@@ -46,6 +48,7 @@ public class CredentialServiceImpl implements CredentialService {
         this.encoder = encoder;
         this.lockoutPolicy = lockoutPolicy;
         this.totp = totp;
+        this.recoveryCodes = recoveryCodes;
         this.events = events;
         this.clock = clock;
         this.decoyHash = encoder.encode(UUID.randomUUID().toString());
@@ -75,11 +78,20 @@ public class CredentialServiceImpl implements CredentialService {
     public boolean checkTwoFactorCode(UUID userId, String code) {
         var credential = load(userId);
         var secret = credential.getTwoFactorSecret();
-        if (secret != null && totp.verify(secret, code)) {
+        if (secret != null && (totp.verify(secret, code) || usedRecoveryCode(userId, code))) {
             return true;
         }
         failed(credential);
         return false;
+    }
+
+    /** One of their recovery codes instead of a code from the app (P-025): used up, and logged with how many are left */
+    private boolean usedRecoveryCode(UUID userId, String code) {
+        if (!recoveryCodes.use(userId, code)) {
+            return false;
+        }
+        events.publishEvent(new RecoveryCodeUsed(userId, access.find(userId).getFullName(), recoveryCodes.remaining(userId)));
+        return true;
     }
 
     @Override

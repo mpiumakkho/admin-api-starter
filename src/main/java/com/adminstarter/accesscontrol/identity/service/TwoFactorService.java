@@ -1,14 +1,19 @@
 package com.adminstarter.accesscontrol.identity.service;
 
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.INVALID_CODE;
+import static com.adminstarter.accesscontrol.common.constant.ErrorCode.INVALID_REQUEST;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.TWO_FACTOR_MANDATORY;
 
 import com.adminstarter.accesscontrol.AccessControlProperties;
 import com.adminstarter.accesscontrol.authorization.CorePermissions;
 import com.adminstarter.accesscontrol.common.context.Actor;
+import com.adminstarter.accesscontrol.identity.dto.RecoveryCodesLeftResponse;
+import com.adminstarter.accesscontrol.identity.dto.RecoveryCodesResponse;
+import com.adminstarter.accesscontrol.identity.dto.TwoFactorConfirmationResponse;
 import com.adminstarter.accesscontrol.identity.dto.TwoFactorSetupResponse;
 import com.adminstarter.accesscontrol.identity.dto.UserResponse;
 import com.adminstarter.accesscontrol.identity.entity.UserCredential;
+import com.adminstarter.accesscontrol.identity.event.RecoveryCodesCreated;
 import com.adminstarter.accesscontrol.identity.event.TwoFactorChanged;
 import com.adminstarter.accesscontrol.identity.policy.SelfProtectionPolicy;
 import com.adminstarter.accesscontrol.identity.repository.UserCredentialRepository;
@@ -34,17 +39,21 @@ public class TwoFactorService {
     private final UserCredentialRepository credentials;
     private final UserAccessService access;
     private final TotpService totp;
+    private final CredentialServiceImpl credentialService;
+    private final RecoveryCodeService recoveryCodes;
     private final UserMapper mapper;
     private final SettingsService settings;
     private final ApplicationEventPublisher events;
     private final String issuer;
 
     public TwoFactorService(UserCredentialRepository credentials, UserAccessService access, TotpService totp,
-            UserMapper mapper, SettingsService settings, ApplicationEventPublisher events,
-            AccessControlProperties properties) {
+            CredentialServiceImpl credentialService, RecoveryCodeService recoveryCodes, UserMapper mapper,
+            SettingsService settings, ApplicationEventPublisher events, AccessControlProperties properties) {
         this.credentials = credentials;
         this.access = access;
         this.totp = totp;
+        this.credentialService = credentialService;
+        this.recoveryCodes = recoveryCodes;
         this.mapper = mapper;
         this.settings = settings;
         this.events = events;
@@ -59,28 +68,53 @@ public class TwoFactorService {
         return new TwoFactorSetupResponse(secret, totp.uri(secret, user.getEmail(), issuer));
     }
 
-    public UserResponse confirm(Actor actor, String code) {
+    /** On, with its first recovery codes (P-025) */
+    public TwoFactorConfirmationResponse confirm(Actor actor, String code) {
         var credential = load(actor.userId());
         var pending = credential.getPendingTwoFactorSecret();
         if (pending == null || !totp.verify(pending, code)) {
             throw INVALID_CODE.exception();
         }
         credential.confirmTwoFactor();
-        return changed(actor, actor.userId(), true);
+        var codes = recoveryCodes.replace(actor.userId());
+        return new TwoFactorConfirmationResponse(changed(actor, actor.userId(), true), codes);
     }
 
-    /** Your own, with a current code; two_factor_mandatory while your role requires it */
+    /**
+     * Your own, with a current code or a recovery code, wrong ones counting towards the lockout; two_factor_mandatory
+     * while your role requires it. The recovery codes go with it.
+     */
     public UserResponse disable(Actor actor, String code) {
         if (actor.roleIds().stream().anyMatch(settings::requiresTwoFactor)) {
             throw TWO_FACTOR_MANDATORY.exception();
         }
         var credential = load(actor.userId());
-        var secret = credential.getTwoFactorSecret();
-        if (secret == null || !totp.verify(secret, code)) {
+        if (credential.getTwoFactorSecret() == null || !credentialService.checkTwoFactorCode(actor.userId(), code)) {
             throw INVALID_CODE.exception();
         }
         credential.turnOffTwoFactor();
+        recoveryCodes.deleteAll(actor.userId());
         return changed(actor, actor.userId(), false);
+    }
+
+    /** How many of your recovery codes are left */
+    @Transactional(readOnly = true)
+    public RecoveryCodesLeftResponse recoveryCodesLeft(Actor actor) {
+        return new RecoveryCodesLeftResponse(recoveryCodes.remaining(actor.userId()));
+    }
+
+    /**
+     * Ten new recovery codes for yourself, which replace the old ones: a risky change, as they get past two-step
+     * sign-in (P-023); invalid_request while it is off
+     */
+    public RecoveryCodesResponse newRecoveryCodes(Actor actor) {
+        if (load(actor.userId()).getTwoFactorSecret() == null) {
+            throw INVALID_REQUEST.exception();
+        }
+        actor.requireRecentSignIn();
+        var codes = recoveryCodes.replace(actor.userId());
+        events.publishEvent(new RecoveryCodesCreated(actor.userId(), access.find(actor.userId()).getFullName()));
+        return new RecoveryCodesResponse(codes);
     }
 
     /**
@@ -93,6 +127,7 @@ public class TwoFactorService {
         actor.requireRecentSignIn();
         var why = settings.requireReason("resetSignIn", reason);
         load(userId).turnOffTwoFactor();
+        recoveryCodes.deleteAll(userId);
         return changed(actor, userId, false, why);
     }
 

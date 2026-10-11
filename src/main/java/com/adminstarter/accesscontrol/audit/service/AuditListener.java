@@ -20,6 +20,8 @@ import com.adminstarter.accesscontrol.identity.event.RoleAssignmentAdded;
 import com.adminstarter.accesscontrol.identity.event.RoleAssignmentExpired;
 import com.adminstarter.accesscontrol.identity.event.RoleAssignmentRemoved;
 import com.adminstarter.accesscontrol.identity.event.RoleAssignmentUpdated;
+import com.adminstarter.accesscontrol.identity.event.RecoveryCodeUsed;
+import com.adminstarter.accesscontrol.identity.event.RecoveryCodesCreated;
 import com.adminstarter.accesscontrol.identity.event.TwoFactorChanged;
 import com.adminstarter.accesscontrol.identity.event.UserCreated;
 import com.adminstarter.accesscontrol.identity.event.UserDeleted;
@@ -124,6 +126,17 @@ public class AuditListener {
     void on(TwoFactorChanged event) {
         record(event.actorId(), event.enabled() ? "auth.two_factor_on" : "auth.two_factor_off", event.fullName(),
                 event.userId(), List.of(), event.reason());
+    }
+
+    @EventListener
+    void on(RecoveryCodeUsed event) {
+        record(event.userId(), "auth.recovery_code_used", event.fullName(), event.userId(),
+                List.of(FieldChange.set("recoveryCodesLeft", String.valueOf(event.remaining()))));
+    }
+
+    @EventListener
+    void on(RecoveryCodesCreated event) {
+        record(event.userId(), "auth.recovery_codes_created", event.fullName(), event.userId(), List.of());
     }
 
     @EventListener

@@ -147,7 +147,7 @@ class AuthenticationFlowIT extends ApiIntegrationTest {
         assertRefused(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", "000000")),
                 HttpStatus.UNAUTHORIZED, "invalid_code");
         assertThat(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", totp.codeAt(secret, Instant.now()))))
-                .hasStatusOk().bodyJson().extractingPath("$.twoFactor").isEqualTo(true);
+                .hasStatusOk().bodyJson().extractingPath("$.user.twoFactor").isEqualTo(true);
         // A copy of the database does not give the secret away (P-014)
         var stored = jdbc.queryForObject("select two_factor_secret from access_control.user_credentials where user_id = ?",
                 String.class, user.userId());

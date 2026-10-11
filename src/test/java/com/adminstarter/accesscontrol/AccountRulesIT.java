@@ -123,7 +123,7 @@ class AccountRulesIT extends ApiIntegrationTest {
 
             var secret = body(send(HttpMethod.POST, "/api/me/two-factor", user, null)).get("secret").asString();
             assertThat(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", totp.codeAt(secret, Instant.now()))))
-                    .hasStatusOk().bodyJson().extractingPath("$.twoFactor").isEqualTo(true);
+                    .hasStatusOk().bodyJson().extractingPath("$.user.twoFactor").isEqualTo(true);
             assertThat(get("/api/users", user)).hasStatusOk();
             assertThat(get("/api/activity", user)).hasStatusOk();
             assertRefused(send(HttpMethod.POST, "/api/me/two-factor/disable", user, Map.of("code", totp.codeAt(secret, Instant.now()))),
