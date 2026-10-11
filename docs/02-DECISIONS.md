@@ -217,3 +217,13 @@
   - ผู้ใช้ใหม่ที่ผู้ดูแลสาขาเพิ่มต้องสังกัดสาขาที่เขามี `users.create` และถ้าไม่ได้ระบุ role จะได้ default role แบบจำกัดสาขานั้น เพราะการมอบแบบทั้งองค์กรต้องมีสิทธิ์ทั้งองค์กร การย้ายสาขาย้ายได้เฉพาะไปสาขาที่มี `users.edit`
   - `GET /api/activity` ของคนที่มี `activity.view` แค่ระดับสาขา ตอบเฉพาะ entry ที่ `target_id` เป็นคนในสาขาเหล่านั้น audit ฟังอย่างเดียว (R5) จึงถามรายชื่อผ่าน `audit/spi/ActivityAudienceProvider` ซึ่ง `config/SecurityConfig` สร้างจาก `UserService.idsInBranches()` แบบเดียวกับ P-018
 - Consequences: สิทธิ์ของ module ธุรกิจยังเป็นแบบ P-020 (`Actor.can(permission, branchId)`) การปิดสาขา (`branchesEnabled`) ไม่ได้ปิดสิทธิ์ของผู้ดูแลสาขา เพราะข้อมูลยังอยู่ ถ้าต้องการปิดให้ถอด role ที่จำกัดสาขาออก entry ของคนที่ย้ายออกจากสาขาไปแล้วจะไม่แสดงให้ผู้ดูแลสาขาเดิมเห็นอีก เพราะกรองตามสังกัดปัจจุบัน
+
+## P-025 รหัสสำรองของ two-step sign-in: 10 รหัสใช้ครั้งเดียว เก็บเป็น hash แบบรหัสผ่าน (ต่อจาก P-008)
+
+- Context: ก่อนหน้านี้คนที่ทำมือถือหายต้องให้ผู้ดูแล reset two-step sign-in ให้ ซึ่งเป็นงาน helpdesk ที่เกิดบ่อย Google และ GitHub ให้รหัสสำรอง (backup codes) ที่คนไทยคุ้นเคยอยู่แล้ว API.md เพิ่มหัวข้อ "Recovery codes", `GET`/`POST /me/recovery-codes` และให้ `POST /me/two-factor/confirm` ตอบ `{ user, recoveryCodes }`
+- Decision:
+  - ตาราง `recovery_codes` (`V10__recovery_codes.sql`: user_id FK cascade, code_hash, created_at, used_at) อยู่ใน identity คู่กับ `user_credentials` แต่ละรหัสเป็นตัวอักษรเล็กและตัวเลข 10 ตัวจาก 31 ตัว (ไม่มี 0, 1, i, l, o) แสดงเป็น `abcde-fghjk` สุ่มด้วย `SecureRandom` (ราว 49 bit) และเก็บด้วย `PasswordEncoder` (Argon2id) เหมือนรหัสผ่าน จึงแสดงได้ครั้งเดียวตอนสร้าง
+  - `CredentialServiceImpl.checkTwoFactorCode` รับรหัสสำรองแทนรหัส 6 หลักได้ เฉพาะเมื่อรูปแบบไม่ใช่ตัวเลข 6 หลัก จึงไม่ต้องเรียก Argon2 กับรหัสจากแอป ใช้แล้วรหัสนั้นหมดไป รหัสผิดนับรวมใน lockout แบบรหัสผิด ใช้ได้ทุกที่ที่ถามรหัส: sign-in, `POST /me/reauthenticate` (P-023) และ `POST /me/two-factor/disable` ซึ่งตอนนี้ผ่าน `checkTwoFactorCode` ด้วย รหัสผิดจึงนับ lockout เหมือนกัน
+  - เปิด two-step sign-in (`confirm`) ได้รหัสชุดแรก, `POST /me/recovery-codes` สร้างชุดใหม่แทนชุดเดิมและเป็นการเปลี่ยนแปลงเสี่ยงของ P-023 (ต้องยืนยันตัวตนซ้ำ) ส่วนการปิดหรือการ reset โดยผู้ดูแลลบรหัสทั้งหมด
+  - activity ใหม่: `auth.recovery_code_used` (ผู้ใช้เป็นทั้ง actor และ target พร้อม `recoveryCodesLeft`) และ `auth.recovery_codes_created`
+- Consequences: การตรวจรหัสสำรองเรียก Argon2 ได้ถึง 10 ครั้ง จึงช้ากว่ารหัสจากแอป แต่เกิดไม่บ่อยและถูกจำกัดด้วย rate limit กับ lockout ผู้ดูแลยัง reset ให้ได้เหมือนเดิมสำหรับคนที่ทำทั้งมือถือและรหัสสำรองหาย passkey (WebAuthn) ยังไม่ทำ
