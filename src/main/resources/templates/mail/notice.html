@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="${productName}">Your account</title>
+</head>
+<body style="font-family: system-ui, sans-serif; color: #1f2937; line-height: 1.5;">
+<p th:text="|Hi ${firstName},|">Hi,</p>
+<p th:each="line : ${lines}" th:text="${line}">What happened to your account.</p>
+<p style="color: #6b7280; font-size: 14px;">
+    If you did not expect this, tell your administrator, and change your password.
+</p>
+</body>
+</html>

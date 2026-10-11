@@ -55,6 +55,9 @@ public class AdminSettings {
      */
     private int reauthMinutes = DEFAULT_REAUTH_MINUTES;
 
+    /** Accounts nobody used for this many days are suspended every night (P-027); 0 leaves them */
+    private int suspendInactiveDays;
+
     private Instant updatedAt;
 
     protected AdminSettings() {}
@@ -93,6 +96,11 @@ public class AdminSettings {
 
     public void changeReauthMinutes(int reauthMinutes, Instant now) {
         this.reauthMinutes = reauthMinutes;
+        this.updatedAt = now;
+    }
+
+    public void changeSuspendInactiveDays(int suspendInactiveDays, Instant now) {
+        this.suspendInactiveDays = suspendInactiveDays;
         this.updatedAt = now;
     }
 
@@ -153,5 +161,9 @@ public class AdminSettings {
 
     public int getReauthMinutes() {
         return reauthMinutes;
+    }
+
+    public int getSuspendInactiveDays() {
+        return suspendInactiveDays;
     }
 }

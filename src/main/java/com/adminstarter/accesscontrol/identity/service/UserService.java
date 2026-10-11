@@ -17,8 +17,8 @@ public interface UserService {
 
     UserResponse get(UUID userId);
 
-    /** Updates lastActiveAt */
-    void recordSignIn(UUID userId);
+    /** Updates lastActiveAt: on each sign-in and each token refresh, so it is when they last used the app (P-027) */
+    void recordActivity(UUID userId);
 
     /** The user set a password from their invitation: an invited account becomes active */
     void acceptInvitation(UUID userId);

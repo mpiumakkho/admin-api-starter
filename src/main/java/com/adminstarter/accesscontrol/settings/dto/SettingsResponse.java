@@ -15,4 +15,5 @@ public record SettingsResponse(
         int activityRetentionDays,
         boolean branchesEnabled,
         List<String> reasonsRequired,
-        int reauthMinutes) {}
+        int reauthMinutes,
+        int suspendInactiveDays) {}

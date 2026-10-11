@@ -1,6 +1,7 @@
 package com.adminstarter.accesscontrol.identity.repository;
 
 import com.adminstarter.accesscontrol.identity.entity.User;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -24,6 +25,13 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     boolean emailTaken(String email);
 
     boolean existsByBranchId(UUID branchId);
+
+    /** Active, and not used since {@code before}: last active then, or, never signed in, created then (P-027) */
+    @Query("""
+            select u from User u
+            where u.status = com.adminstarter.accesscontrol.identity.entity.UserStatus.ACTIVE
+              and coalesce(u.lastActiveAt, u.createdAt) < :before""")
+    List<User> findInactiveSince(Instant before);
 
     @Query("select u.id from User u where u.branchId in :branchIds")
     List<UUID> findIdsByBranchIdIn(Collection<UUID> branchIds);

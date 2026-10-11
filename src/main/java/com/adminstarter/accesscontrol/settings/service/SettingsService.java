@@ -23,6 +23,12 @@ public interface SettingsService {
      */
     Duration reauthWindow();
 
+    /**
+     * How long a session may go without a request before the server ends it (sessionTimeoutMinutes, P-027); zero never.
+     * Asked on every request: cached, evicted after commit whenever the settings change.
+     */
+    Duration idleTimeout();
+
     /** The password rules (P-017), which anyone may read, signed in or not: GET /api/auth/password-policy */
     PasswordPolicyResponse passwordPolicy();
 

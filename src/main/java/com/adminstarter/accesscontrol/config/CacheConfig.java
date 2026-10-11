@@ -11,8 +11,9 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Caffeine caches for what every request looks up: an account's status and role ("accounts"), a role's
- * permissions ("role-permissions"), whether a role requires two-step sign-in ("two-factor-roles") and how long a
- * confirmed password lasts ("reauth-window"). Evictions wait
+ * permissions ("role-permissions"), whether a role requires two-step sign-in ("two-factor-roles"), how long a
+ * confirmed password lasts ("reauth-window") and how long a session may go without a request ("idle-timeout").
+ * Evictions wait
  * for the transaction to commit, so a request in between cannot cache the old value again; the TTL bounds how long
  * another server instance may lag.
  */

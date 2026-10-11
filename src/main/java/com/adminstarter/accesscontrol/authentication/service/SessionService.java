@@ -30,9 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class SessionService implements SessionChecker {
 
-    /** How often "last seen" is brought up to date, so every request is not a write */
-    private static final Duration SEEN_EVERY = Duration.ofMinutes(1);
-
     private final UserSessionRepository sessions;
     private final UserService users;
     private final SettingsService settings;
@@ -55,7 +52,12 @@ public class SessionService implements SessionChecker {
         if (session == null || !session.getUserId().equals(userId) || !session.openAt(now)) {
             return Optional.empty();
         }
-        if (session.getLastSeenAt().plus(SEEN_EVERY).isBefore(now)) {
+        // No request for longer than the settings' idle timeout: the server ends it too (P-027)
+        if (session.idleAt(now, settings.idleTimeout())) {
+            session.end(now);
+            return Optional.empty();
+        }
+        if (session.getLastSeenAt().plus(UserSession.SEEN_EVERY).isBefore(now)) {
             session.seen(now);
         }
         return Optional.of(session.getVerifiedAt());
