@@ -57,11 +57,11 @@ admin-api-starter/
 
 | Path | Purpose | May depend on |
 |---|---|---|
-| `PermissionAuthenticationConverter.java` | JWT → `ActorAuthentication` ตรวจว่า session ยังเปิด, บัญชี active เลือก role ที่นับ ณ ตอนนั้นแล้วรวมสิทธิ์ (P-019) และดูว่ามี role ที่บังคับ two-step sign-in ที่ยังปิดอยู่หรือไม่ (`Actor.twoFactorSetupRequired`) | `identity.pub`, `authorization.pub`, `settings.pub`, `SessionChecker` |
+| `PermissionAuthenticationConverter.java` | JWT → `ActorAuthentication` ตรวจว่า session ยังเปิด, บัญชี active เลือก role ที่นับ ณ ตอนนั้นแล้วรวมสิทธิ์ (P-019) ดูว่ามี role ที่บังคับ two-step sign-in ที่ยังปิดอยู่หรือไม่ (`Actor.twoFactorSetupRequired`) และ session ยืนยันตัวตนมาไม่เกิน `reauthMinutes` หรือไม่ (`Actor.recentSignIn`, P-023) | `identity.pub`, `authorization.pub`, `settings.pub`, `SessionChecker` |
 | `ActorAuthentication.java` | principal คือ `Actor` ส่วน authority คือ permission code | `common` |
-| `SessionChecker.java` | interface ที่ authentication implement (P-010) | — |
+| `SessionChecker.java` | interface ที่ authentication implement (P-010): session ยังเปิดอยู่ไหม และยืนยันตัวตนล่าสุดเมื่อไร (P-023) | — |
 | `RequestContextFilter.java` | bind `RequestContext` (ScopedValue) + MDC `request_id` | `common` |
-| `RateLimitFilter.java` | Bucket4j ต่อ IP บน `/api/auth/*` → 429 | `common` |
+| `RateLimitFilter.java` | Bucket4j ต่อ IP บน `/api/auth/*` และ `/api/me/reauthenticate` → 429 | `common` |
 | `TwoFactorSetupFilter.java` | ต่อจาก `BearerTokenAuthenticationFilter`: คนที่ role บังคับ two-step sign-in แต่ยังไม่เปิด ได้แค่สิ่งที่ใช้เปิดมัน ที่เหลือ → 403 `two_factor_mandatory` (P-016) | `common` |
 | `SecurityProblemHandler.java` | 401/403 เป็น ProblemDetail ที่มี `code` | `common` |
 | `jwt/JwtIssuer.java`, `jwt/JwtKeyProvider.java` | ออก access token (`sub`, `sid`) และจัดการ key ตาม `kid` | — |
@@ -73,7 +73,7 @@ admin-api-starter/
 | `constant/ErrorCode.java` | code ทั้งหมดของ API.md พร้อม HTTP status |
 | `exception/AccessControlException.java` | การปฏิเสธที่ตั้งใจไว้ (ไม่มี stack trace) |
 | `error/ApiExceptionHandler.java` | `@RestControllerAdvice` → ProblemDetail + `code` + `requestId` และแปลง constraint ของ DB เป็น code |
-| `context/RequestContext.java`, `Device.java`, `Actor.java` | request นี้มาจากไหน (ip, browser, os) และใครเป็นผู้ทำ |
+| `context/RequestContext.java`, `Device.java`, `Actor.java` | request นี้มาจากไหน (ip, browser, os) และใครเป็นผู้ทำ; `Actor.requireRecentSignIn()` ให้การเปลี่ยนแปลงเสี่ยงตรวจการยืนยันตัวตนซ้ำ (P-023) |
 | `dto/FieldChange.java` | หนึ่ง field ที่เปลี่ยนใน activity log (ActivityChange) |
 
 ### Module
@@ -81,9 +81,9 @@ admin-api-starter/
 | Module | Layers | Public surface | หน้าที่ |
 |---|---|---|---|
 | `identity/` | controller, service, repository, entity, dto, event, policy | `UserService`, `CredentialService`, `dto/*`, `event/*` | user, รหัสผ่าน (Argon2id + lockout, กฎจาก settings และประวัติใน `previous_passwords`: P-017), 2FA (TOTP), กฎป้องกันตัวเอง, การมอบ role ที่มีช่วงเวลา (`role_assignments`, `RoleAssignmentExpiryJob`: P-019) ทั้งองค์กรหรือเฉพาะสาขา และสาขาที่ user สังกัด (`BranchMemberResolver`: P-020); `UserController` (`/api/users`), `RoleAssignmentController` (`/api/role-assignments`), `MeController` (`/api/me`) |
-| `authentication/` | controller, service, repository, entity, dto, event | `event/*` | login, refresh rotation + reuse detection, session/อุปกรณ์, ลิงก์ในอีเมล; `AuthController` (`/api/auth`, รวม `GET /password-policy`), `SessionController` |
+| `authentication/` | controller, service, repository, entity, dto, event | `event/*` | login, refresh rotation + reuse detection, session/อุปกรณ์, ลิงก์ในอีเมล, ยืนยันตัวตนซ้ำ (`user_sessions.verified_at`: P-023); `AuthController` (`/api/auth`, รวม `GET /password-policy`), `SessionController` (รวม `POST /api/me/reauthenticate`) |
 | `authorization/` | controller, service, repository, entity, dto, event, policy, spi | `RoleService`, `CorePermissions`, `CoreRoles`, `spi/*`, `dto/*`, `event/*` | role, permission catalog (sync ตอน start), `GrantPolicy`, กฎบทบาทที่ห้ามถือร่วมกัน (`RoleConflictService`: P-022); `RoleController` (`/api/roles`), `RoleConflictController` (`/api/role-conflicts`) |
-| `settings/` | controller, service, repository, entity, dto, event | `SettingsService`, `dto/*`, `event/*` | `AdminSettings` รวมกฎของบัญชี (`twoFactorRoleIds`, `passwordMinLength`, `passwordHistory`, `activityRetentionDays`), `branchesEnabled` และ `reasonsRequired`; `SettingsService.requireReason` ให้ module อื่นตรวจเหตุผล (P-021); `SettingsController` (`/api/settings`); `RoleEventListener` เอา role ที่ถูกลบออกจาก `twoFactorRoleIds` |
+| `settings/` | controller, service, repository, entity, dto, event | `SettingsService`, `dto/*`, `event/*` | `AdminSettings` รวมกฎของบัญชี (`twoFactorRoleIds`, `passwordMinLength`, `passwordHistory`, `activityRetentionDays`), `branchesEnabled`, `reasonsRequired` และ `reauthMinutes`; `SettingsService.requireReason` ให้ module อื่นตรวจเหตุผล (P-021) และ `reauthWindow` (cache) ให้ security คิด `Actor.recentSignIn` (P-023); `SettingsController` (`/api/settings`); `RoleEventListener` เอา role ที่ถูกลบออกจาก `twoFactorRoleIds` |
 | `branch/` | controller, service, repository, entity, dto, event, spi | `BranchService`, `spi/*`, `dto/*`, `event/*` | สาขา (P-020): `Branch` (code ไม่ซ้ำแบบไม่สนตัวพิมพ์, เปิด/ปิด); `BranchController` (`/api/branches`); `BranchService.requireOpen` ให้ identity ตรวจสาขาก่อนรับคนหรือมอบ role; `spi/BranchMemberProvider` ให้ identity ตอบว่าสาขายังมีคนอยู่ไหม |
 | `audit/` | controller, service, repository, entity, dto, event, spi | `event/ActivityRecorded`, `spi/*` | ฟัง event ของทุก module แล้วเขียน `audit_logs` ใน transaction เดียวกัน พร้อมเหตุผลที่ event พกมา (`reason`, P-021); `ActivityController` (`/api/activity?from=&to=`); `AuditRetentionJob` ลบ activity ที่เก่ากว่าที่ `ActivityRetentionProvider` บอกทุกคืน |
 | `notification/` | service | `NotificationService` | อีเมลเชิญและรีเซ็ตรหัสผ่าน (Thymeleaf, `@Async`, หลัง commit) |

@@ -44,6 +44,7 @@ endpoints:
   - { method: GET,    path: "/api/auth/password-policy",          permission: public, note: "P-017" }
   - { method: GET,    path: "/api/me",                            permission: authenticated, two_factor_setup: true }
   - { method: POST,   path: "/api/me/password",                   permission: authenticated }
+  - { method: POST,   path: "/api/me/reauthenticate",             permission: authenticated, note: "P-023" }
   - { method: POST,   path: "/api/me/two-factor",                 permission: authenticated, two_factor_setup: true }
   - { method: POST,   path: "/api/me/two-factor/confirm",         permission: authenticated, two_factor_setup: true }
   - { method: POST,   path: "/api/me/two-factor/disable",         permission: authenticated, note: "two_factor_mandatory while the role requires it" }
