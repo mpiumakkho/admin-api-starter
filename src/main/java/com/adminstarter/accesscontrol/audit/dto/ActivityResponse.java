@@ -7,12 +7,15 @@ import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/** Activity in admin-ng-starter's models.ts; targetId and changes are left out when there are none */
+/**
+ * Activity in admin-ng-starter's models.ts; targetId and changes are left out when there are none, while actorId is
+ * null, not left out, for what the server did by itself
+ */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ActivityResponse(
         UUID id,
         Instant at,
-        UUID actorId,
+        @JsonInclude(JsonInclude.Include.ALWAYS) @Nullable UUID actorId,
         String action,
         String targetLabel,
         @Nullable String targetId,

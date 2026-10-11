@@ -22,11 +22,14 @@ public class UserAccessService {
 
     private final UserRepository users;
     private final RoleService roles;
+    private final RoleAssignmentResolver assignments;
     private final SettingsService settings;
 
-    public UserAccessService(UserRepository users, RoleService roles, SettingsService settings) {
+    public UserAccessService(UserRepository users, RoleService roles, RoleAssignmentResolver assignments,
+            SettingsService settings) {
         this.users = users;
         this.roles = roles;
+        this.assignments = assignments;
         this.settings = settings;
     }
 
@@ -34,10 +37,13 @@ public class UserAccessService {
         return users.findById(userId).orElseThrow(NOT_FOUND::exception);
     }
 
-    /** A user the actor may change: nobody manages someone whose role allows more than their own */
+    /**
+     * A user the actor may change: nobody manages someone whose roles, now or scheduled, allow more than their own
+     * (P-019)
+     */
     public User findManageable(Actor actor, UUID userId) {
         var user = find(userId);
-        if (!actor.is(userId) && !roles.canManageHolderOf(actor, user.getRoleId())) {
+        if (!actor.is(userId) && !assignments.heldRoleIds(userId).stream().allMatch(roleId -> roles.canManageHolderOf(actor, roleId))) {
             throw FORBIDDEN.exception();
         }
         return user;

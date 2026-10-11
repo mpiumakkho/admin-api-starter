@@ -37,7 +37,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     /** Database constraints that stand for a rule, for the race the service checks cannot see */
     private static final Map<String, ErrorCode> CONSTRAINTS = Map.of(
             "ux_users_email", ErrorCode.EMAIL_TAKEN,
-            "fk_users_role", ErrorCode.ROLE_IN_USE,
+            "ck_role_assignments_period", ErrorCode.INVALID_REQUEST,
             "fk_admin_settings_default_role", ErrorCode.DEFAULT_ROLE);
 
     public static ProblemDetail problem(ErrorCode code) {

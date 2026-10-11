@@ -10,6 +10,7 @@ import jakarta.servlet.http.Cookie;
 import java.net.URI;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.StreamSupport;
@@ -125,9 +126,22 @@ public abstract class ApiIntegrationTest {
         return "user-" + UUID.randomUUID().toString().substring(0, 8) + "@example.com";
     }
 
+    /** A new user with one role, for good */
     protected Map<String, Object> draft(String email, UUID roleId, String status) {
         return Map.of("firstName", "Test", "lastName", "User", "email", email, "department", "Design",
-                "roleId", roleId.toString(), "status", status);
+                "roles", List.of(Map.of("roleId", roleId.toString())), "status", status);
+    }
+
+    /** The roles a user holds now, by id, from GET /api/users */
+    protected List<String> rolesOf(Browser as, String userId) {
+        var now = Instant.now();
+        return body(get("/api/users", as)).valueStream()
+                .filter(user -> user.get("id").asString().equals(userId))
+                .flatMap(user -> user.get("roles").valueStream())
+                .filter(item -> !Instant.parse(item.get("startsAt").asString()).isAfter(now)
+                        && (item.get("endsAt").isNull() || Instant.parse(item.get("endsAt").asString()).isAfter(now)))
+                .map(item -> item.get("roleId").asString())
+                .toList();
     }
 
     /** A new active user who set their password through the invitation email, signed in */

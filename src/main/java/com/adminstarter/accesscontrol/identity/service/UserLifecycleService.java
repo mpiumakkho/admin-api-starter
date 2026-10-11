@@ -4,13 +4,11 @@ import static com.adminstarter.accesscontrol.common.constant.ErrorCode.EMAIL_TAK
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.NOT_INVITED;
 
 import com.adminstarter.accesscontrol.authorization.CorePermissions;
-import com.adminstarter.accesscontrol.authorization.service.RoleService;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.common.dto.FieldChange;
 import com.adminstarter.accesscontrol.identity.dto.CreateUserRequest;
 import com.adminstarter.accesscontrol.identity.dto.DeleteUsersRequest;
 import com.adminstarter.accesscontrol.identity.dto.ImportUsersRequest;
-import com.adminstarter.accesscontrol.identity.dto.SetUserRoleRequest;
 import com.adminstarter.accesscontrol.identity.dto.SetUserStatusRequest;
 import com.adminstarter.accesscontrol.identity.dto.UpdateUserRequest;
 import com.adminstarter.accesscontrol.identity.dto.UserResponse;
@@ -51,19 +49,21 @@ public class UserLifecycleService {
     private final UserCredentialRepository credentials;
     private final CredentialServiceImpl credentialService;
     private final UserAccessService access;
-    private final RoleService roles;
+    private final RoleAssignmentService assignments;
+    private final RoleAssignmentResolver resolver;
     private final UserMapper mapper;
     private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public UserLifecycleService(UserRepository users, UserCredentialRepository credentials,
-            CredentialServiceImpl credentialService, UserAccessService access, RoleService roles, UserMapper mapper,
-            ApplicationEventPublisher events, Clock clock) {
+            CredentialServiceImpl credentialService, UserAccessService access, RoleAssignmentService assignments,
+            RoleAssignmentResolver resolver, UserMapper mapper, ApplicationEventPublisher events, Clock clock) {
         this.users = users;
         this.credentials = credentials;
         this.credentialService = credentialService;
         this.access = access;
-        this.roles = roles;
+        this.assignments = assignments;
+        this.resolver = resolver;
         this.mapper = mapper;
         this.events = events;
         this.clock = clock;
@@ -76,8 +76,9 @@ public class UserLifecycleService {
             return List.of(respond(access.find(actor.userId())));
         }
         var twoFactor = credentials.findTwoFactorUserIds();
+        var roles = resolver.byUser();
         return users.findAllByOrderByIdDesc().stream()
-                .map(user -> mapper.toResponse(user, twoFactor.contains(user.getId())))
+                .map(user -> mapper.toResponse(user, twoFactor.contains(user.getId()), roles.getOrDefault(user.getId(), List.of())))
                 .toList();
     }
 
@@ -114,14 +115,15 @@ public class UserLifecycleService {
                 access.requireEmailDomain(after.email());
             }
         }
-        var roleChanged = !after.roleId().equals(before.roleId());
         var statusChanged = after.status() != before.status();
-        SelfProtectionPolicy.forbidOwnRoleOrStatus(actor, id, roleChanged, statusChanged);
-        if (roleChanged) {
-            roles.requireAssignable(actor, after.roleId());
-        }
-        user.update(after.firstName(), after.lastName(), after.email(), after.phone(), after.department(),
-                after.avatar(), after.roleId(), after.status(), now());
+        SelfProtectionPolicy.forbidOwnStatus(actor, id, statusChanged);
+        // A status change may take away the last person who can run the system
+        assignments.keepingAdministrator(() -> {
+            user.update(after.firstName(), after.lastName(), after.email(), after.phone(), after.department(),
+                    after.avatar(), after.status(), now());
+            users.flush();
+            return user;
+        });
         events.publishEvent(new UserUpdated(actor.userId(), id, user.getFullName(), before.diff(after)));
         if (statusChanged && after.status() == UserStatus.SUSPENDED) {
             events.publishEvent(new UserSuspended(id));
@@ -135,44 +137,26 @@ public class UserLifecycleService {
         SelfProtectionPolicy.forbidSelf(actor, request.ids());
         var status = UserStatus.of(request.status());
         var targets = request.ids().stream().distinct().map(id -> access.findManageable(actor, id)).toList();
-        var changed = new ArrayList<UserResponse>();
-        for (var user : targets) {
-            if (user.getStatus() == status) {
-                continue;
+        var changed = new ArrayList<User>();
+        // Suspending may take away the last person who can run the system
+        assignments.keepingAdministrator(() -> {
+            for (var user : targets) {
+                if (user.getStatus() == status) {
+                    continue;
+                }
+                var from = user.getStatus();
+                user.changeStatus(status, now());
+                events.publishEvent(new UserStatusChanged(actor.userId(), user.getId(), user.getFullName(), from.value(),
+                        status.value()));
+                if (status == UserStatus.SUSPENDED) {
+                    events.publishEvent(new UserSuspended(user.getId()));
+                }
+                changed.add(user);
             }
-            var from = user.getStatus();
-            user.changeStatus(status, now());
-            events.publishEvent(new UserStatusChanged(actor.userId(), user.getId(), user.getFullName(), from.value(),
-                    status.value()));
-            if (status == UserStatus.SUSPENDED) {
-                events.publishEvent(new UserSuspended(user.getId()));
-            }
-            changed.add(respond(user));
-        }
-        return changed;
-    }
-
-    /**
-     * Gives several people the same role; answers with the ones whose role changed. Nobody changes their own role,
-     * assigns a role that grants more than they hold, or changes someone they may not manage (API.md, rules 2 to 4).
-     */
-    @CacheEvict(cacheNames = UserServiceImpl.ACCOUNTS_CACHE, allEntries = true)
-    public List<UserResponse> setRole(Actor actor, SetUserRoleRequest request) {
-        SelfProtectionPolicy.forbidSelf(actor, request.ids());
-        roles.requireAssignable(actor, request.roleId());
-        var targets = request.ids().stream().distinct().map(id -> access.findManageable(actor, id)).toList();
-        var changed = new ArrayList<UserResponse>();
-        for (var user : targets) {
-            if (user.getRoleId().equals(request.roleId())) {
-                continue;
-            }
-            var from = user.getRoleId();
-            user.changeRole(request.roleId(), now());
-            events.publishEvent(new UserUpdated(actor.userId(), user.getId(), user.getFullName(),
-                    List.of(FieldChange.of("roleId", from.toString(), request.roleId().toString()))));
-            changed.add(respond(user));
-        }
-        return changed;
+            users.flush();
+            return changed;
+        });
+        return changed.stream().map(this::respond).toList();
     }
 
     /** Their sessions, credentials and email links go with them (on delete cascade); the activity log keeps their name */
@@ -180,12 +164,20 @@ public class UserLifecycleService {
     public void delete(Actor actor, DeleteUsersRequest request) {
         SelfProtectionPolicy.forbidSelf(actor, request.ids());
         var targets = request.ids().stream().distinct().map(id -> access.findManageable(actor, id)).toList();
+        var now = clock.instant();
         for (var user : targets) {
+            var roles = resolver.of(user.getId()).stream().filter(item -> item.activeAt(now))
+                    .map(item -> item.getRoleId().toString()).distinct().toList();
             events.publishEvent(new UserDeleted(actor.userId(), user.getId(), user.getFullName(), List.of(
                     FieldChange.was("email", user.getEmail()),
-                    FieldChange.was("roleId", user.getRoleId().toString()))));
+                    FieldChange.list("roles", List.of(), roles))));
         }
-        users.deleteAll(targets);
+        // Their role assignments go with them (on delete cascade); that may leave nobody who can run the system
+        assignments.keepingAdministrator(() -> {
+            users.deleteAll(targets);
+            users.flush();
+            return targets;
+        });
     }
 
     /** Emails a link to set a new password; for someone else, the old one stops working and their sessions end */
@@ -209,23 +201,24 @@ public class UserLifecycleService {
     }
 
     private void requireCanCreate(Actor actor, CreateUserRequest draft) {
-        roles.requireAssignable(actor, draft.roleId());
+        assignments.requireCanGive(actor, draft.roles());
         access.requireEmailFree(draft.email().trim(), null);
         access.requireEmailDomain(draft.email());
     }
 
+    /** The user, then their first roles, each with its own entry in the log */
     private User add(Actor actor, CreateUserRequest draft) {
         var status = UserStatus.of(draft.status());
         var user = users.save(new User(draft.firstName(), draft.lastName(), draft.email().trim(),
                 Objects.requireNonNullElse(draft.phone(), ""), draft.department(),
-                Objects.requireNonNullElse(draft.avatar(), ""), draft.roleId(), status, now()));
+                Objects.requireNonNullElse(draft.avatar(), ""), status, now()));
         credentialService.create(user.getId(), null);
         events.publishEvent(new UserCreated(actor.userId(), user.getId(), user.getFullName(), user.getEmail(),
                 user.getFirstName(), status == UserStatus.INVITED, List.of(
-                        FieldChange.set("roleId", user.getRoleId().toString()),
                         FieldChange.set("department", user.getDepartment()),
                         FieldChange.set("email", user.getEmail()),
                         FieldChange.set("status", status.value()))));
+        assignments.giveFirstRoles(actor, user, draft.roles());
         return user;
     }
 
@@ -239,11 +232,11 @@ public class UserLifecycleService {
 
     /** The fields a request may set, before or after a change, in the order the activity log lists them */
     private record Profile(String firstName, String lastName, String email, String phone, String department,
-            UUID roleId, UserStatus status, String avatar) {
+            UserStatus status, String avatar) {
 
         static Profile of(User user) {
             return new Profile(user.getFirstName(), user.getLastName(), user.getEmail(), user.getPhone(), user.getDepartment(),
-                    user.getRoleId(), user.getStatus(), user.getAvatar());
+                    user.getStatus(), user.getAvatar());
         }
 
         Profile with(UpdateUserRequest request) {
@@ -253,7 +246,6 @@ public class UserLifecycleService {
                     request.email() == null ? email : request.email().trim(),
                     Objects.requireNonNullElse(request.phone(), phone),
                     Objects.requireNonNullElse(request.department(), department),
-                    Objects.requireNonNullElse(request.roleId(), roleId),
                     request.status() == null ? status : UserStatus.of(request.status()),
                     Objects.requireNonNullElse(request.avatar(), avatar));
         }
@@ -265,7 +257,6 @@ public class UserLifecycleService {
             values.put("email", email);
             values.put("phone", phone);
             values.put("department", department);
-            values.put("roleId", roleId.toString());
             values.put("status", status.value());
             values.put("avatar", avatar);
             return values;

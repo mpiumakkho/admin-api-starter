@@ -23,7 +23,8 @@ public class AuditLog {
     private UUID id;
 
     private Instant occurredAt;
-    private UUID actorId;
+    /** Null for what the server did by itself, such as ending a role assignment on time */
+    private @Nullable UUID actorId;
     /** Such as "user.updated"; ActivityAction in admin-ng-starter's models.ts */
     private String action;
     private String targetLabel;
@@ -41,7 +42,7 @@ public class AuditLog {
 
     protected AuditLog() {}
 
-    public AuditLog(Instant occurredAt, UUID actorId, String action, String targetLabel, @Nullable String targetId,
+    public AuditLog(Instant occurredAt, @Nullable UUID actorId, String action, String targetLabel, @Nullable String targetId,
             @Nullable String changes, String ip, String browser, String os, String requestId) {
         this.occurredAt = occurredAt;
         this.actorId = actorId;
@@ -63,7 +64,7 @@ public class AuditLog {
         return occurredAt;
     }
 
-    public UUID getActorId() {
+    public @Nullable UUID getActorId() {
         return actorId;
     }
 

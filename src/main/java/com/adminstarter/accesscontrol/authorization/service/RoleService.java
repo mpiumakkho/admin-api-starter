@@ -16,9 +16,15 @@ public interface RoleService {
 
     Optional<UUID> findIdByCode(String code);
 
-    /** Refuses with not_found when the role does not exist, forbidden when it grants a permission the actor lacks */
-    void requireAssignable(Actor actor, UUID roleId);
+    /**
+     * The role, with its rules for giving it; refuses with not_found when it does not exist, forbidden when it grants a
+     * permission the actor lacks
+     */
+    RoleResponse requireAssignable(Actor actor, UUID roleId);
 
     /** Whether the actor may manage someone holding this role: edit, suspend, delete, reset, invite again */
     boolean canManageHolderOf(Actor actor, UUID roleId);
+
+    /** The roles that grant every permission there is, such as the built-in Administrator: someone must keep one */
+    Set<UUID> fullAccessRoleIds();
 }

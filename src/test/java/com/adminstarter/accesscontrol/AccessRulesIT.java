@@ -74,16 +74,29 @@ class AccessRulesIT extends ApiIntegrationTest {
     }
 
     @Test
-    void rule_4_nobody_suspends_deletes_or_demotes_themselves() {
+    void rule_4_nobody_suspends_deletes_or_changes_the_roles_of_themselves() {
         var admin = admin();
         var self = List.of(admin.userId().toString());
         assertRefused(send(HttpMethod.POST, "/api/users/status", admin, Map.of("ids", self, "status", "suspended")),
                 HttpStatus.FORBIDDEN, "self_change");
         assertRefused(send(HttpMethod.POST, "/api/users/delete", admin, Map.of("ids", self)), HttpStatus.FORBIDDEN, "self_change");
+        assertRefused(send(HttpMethod.POST, "/api/role-assignments", admin,
+                Map.of("userId", admin.userId().toString(), "roleId", roleId(admin, "Viewer").toString())), HttpStatus.FORBIDDEN, "self_change");
+        // Roles change only through role assignments
         assertRefused(send(HttpMethod.PATCH, "/api/users/" + admin.userId(), admin, Map.of("roleId", roleId(admin, "Viewer").toString())),
-                HttpStatus.FORBIDDEN, "self_change");
-        assertRefused(send(HttpMethod.PATCH, "/api/roles/" + roleId(admin, "Administrator"), admin, Map.of("permissions", List.of("users.view"))),
-                HttpStatus.FORBIDDEN, "self_change");
+                HttpStatus.BAD_REQUEST, "invalid_request");
+    }
+
+    @Test
+    void rule_4_nobody_changes_the_permissions_of_a_role_they_hold() {
+        var admin = admin();
+        var name = "Keeper " + UUID.randomUUID();
+        var role = body(send(HttpMethod.POST, "/api/roles", admin,
+                Map.of("name", name, "permissions", List.of("users.view", "roles.view", "roles.manage"))));
+        var keeper = newUser(name, "keeper-pass-1");
+        var path = "/api/roles/" + role.get("id").asString();
+        assertRefused(send(HttpMethod.PATCH, path, keeper, Map.of("permissions", List.of("users.view"))), HttpStatus.FORBIDDEN, "self_change");
+        assertThat(send(HttpMethod.PATCH, path, keeper, Map.of("description", "Keeps roles"))).hasStatusOk();
     }
 
     @Test
@@ -101,55 +114,65 @@ class AccessRulesIT extends ApiIntegrationTest {
     }
 
     @Test
-    void several_people_get_the_same_role_at_once_and_each_change_is_logged() {
+    void several_people_get_a_role_at_once_and_each_change_is_logged() {
         var admin = admin();
         var viewer = roleId(admin, "Viewer");
         var support = roleId(admin, "Support");
         var first = body(send(HttpMethod.POST, "/api/users", admin, draft(uniqueEmail(), viewer, "active"))).get("id").asString();
         var second = body(send(HttpMethod.POST, "/api/users", admin, draft(uniqueEmail(), support, "active"))).get("id").asString();
 
-        // Only the people whose role changed come back
-        var changed = body(send(HttpMethod.POST, "/api/users/role", admin, Map.of("ids", List.of(first, second, first), "roleId", support)));
+        // Only the people who did not hold it come back, holding both roles now
+        var changed = body(send(HttpMethod.POST, "/api/role-assignments/batch", admin,
+                Map.of("userIds", List.of(first, second, first), "add", Map.of("roleId", support.toString()))));
         assertThat(changed).hasSize(1);
         assertThat(changed.get(0).get("id").asString()).isEqualTo(first);
-        assertThat(changed.get(0).get("roleId").asString()).isEqualTo(support.toString());
+        assertThat(rolesOf(admin, first)).containsExactlyInAnyOrder(viewer.toString(), support.toString());
 
         var entries = body(get("/api/activity", admin)).valueStream()
-                .filter(entry -> entry.get("action").asString().equals("user.updated") && entry.has("targetId"))
+                .filter(entry -> entry.get("action").asString().equals("role_assignment.added") && entry.has("targetId"))
                 .toList();
+        // One when the user was added, one now
         var logged = entries.stream().filter(entry -> entry.get("targetId").asString().equals(first)).toList();
-        assertThat(logged).hasSize(1);
+        assertThat(logged).hasSize(2);
         assertThat(logged.get(0).get("actorId").asString()).isEqualTo(admin.userId().toString());
         var change = logged.get(0).get("changes").get(0);
         assertThat(change.get("field").asString()).isEqualTo("roleId");
-        assertThat(change.get("from").asString()).isEqualTo(viewer.toString());
         assertThat(change.get("to").asString()).isEqualTo(support.toString());
-        assertThat(entries).noneMatch(entry -> entry.get("targetId").asString().equals(second));
+        assertThat(entries.stream().filter(entry -> entry.get("targetId").asString().equals(second))).hasSize(1);
+
+        // Taken away again from both
+        var taken = body(send(HttpMethod.POST, "/api/role-assignments/batch", admin,
+                Map.of("userIds", List.of(first, second), "removeRoleId", support.toString())));
+        assertThat(taken).hasSize(2);
+        assertThat(rolesOf(admin, first)).containsExactly(viewer.toString());
+        assertThat(rolesOf(admin, second)).isEmpty();
     }
 
     @Test
-    void a_role_change_for_several_people_follows_the_rules() {
+    void a_role_for_several_people_follows_the_rules() {
         var admin = admin();
         var manager = newUser("Manager", "manager-pass-1");
         var viewer = roleId(admin, "Viewer");
         var target = body(send(HttpMethod.POST, "/api/users", admin, draft(uniqueEmail(), viewer, "active"))).get("id").asString();
-        var support = roleId(admin, "Support").toString();
+        var support = Map.of("roleId", roleId(admin, "Support").toString());
 
-        assertRefused(send(HttpMethod.POST, "/api/users/role", manager,
-                Map.of("ids", List.of(target, manager.userId().toString()), "roleId", support)), HttpStatus.FORBIDDEN, "self_change");
-        assertRefused(send(HttpMethod.POST, "/api/users/role", manager,
-                Map.of("ids", List.of(target), "roleId", roleId(admin, "Administrator").toString())), HttpStatus.FORBIDDEN, "forbidden");
-        assertRefused(send(HttpMethod.POST, "/api/users/role", manager,
-                Map.of("ids", List.of(target, admin.userId().toString()), "roleId", support)), HttpStatus.FORBIDDEN, "forbidden");
-        assertRefused(send(HttpMethod.POST, "/api/users/role", manager,
-                Map.of("ids", List.of(target), "roleId", UUID.randomUUID().toString())), HttpStatus.NOT_FOUND, "not_found");
-        assertRefused(send(HttpMethod.POST, "/api/users/role", newUser("Viewer", "viewer-pass-1"),
-                Map.of("ids", List.of(target), "roleId", support)), HttpStatus.FORBIDDEN, "forbidden");
+        assertRefused(send(HttpMethod.POST, "/api/role-assignments/batch", manager,
+                Map.of("userIds", List.of(target, manager.userId().toString()), "add", support)), HttpStatus.FORBIDDEN, "self_change");
+        assertRefused(send(HttpMethod.POST, "/api/role-assignments/batch", manager,
+                Map.of("userIds", List.of(target), "add", Map.of("roleId", roleId(admin, "Administrator").toString()))), HttpStatus.FORBIDDEN, "forbidden");
+        assertRefused(send(HttpMethod.POST, "/api/role-assignments/batch", manager,
+                Map.of("userIds", List.of(target, admin.userId().toString()), "add", support)), HttpStatus.FORBIDDEN, "forbidden");
+        assertRefused(send(HttpMethod.POST, "/api/role-assignments/batch", manager,
+                Map.of("userIds", List.of(target), "add", Map.of("roleId", UUID.randomUUID().toString()))), HttpStatus.NOT_FOUND, "not_found");
+        assertRefused(send(HttpMethod.POST, "/api/role-assignments/batch", newUser("Viewer", "viewer-pass-1"),
+                Map.of("userIds", List.of(target), "add", support)), HttpStatus.FORBIDDEN, "forbidden");
+        assertRefused(send(HttpMethod.POST, "/api/role-assignments/batch", manager,
+                Map.of("userIds", List.of(target), "add", support, "removeRoleId", viewer.toString())), HttpStatus.BAD_REQUEST, "invalid_request");
 
         // None of that changed anything; a role the manager could give out does
-        assertThat(roleOf(admin, target)).isEqualTo(viewer.toString());
-        assertThat(send(HttpMethod.POST, "/api/users/role", manager, Map.of("ids", List.of(target), "roleId", support))).hasStatusOk();
-        assertThat(roleOf(admin, target)).isEqualTo(support);
+        assertThat(rolesOf(admin, target)).containsExactly(viewer.toString());
+        assertThat(send(HttpMethod.POST, "/api/role-assignments/batch", manager, Map.of("userIds", List.of(target), "add", support))).hasStatusOk();
+        assertThat(rolesOf(admin, target)).containsExactlyInAnyOrder(viewer.toString(), support.get("roleId"));
     }
 
     @Test
@@ -259,13 +282,6 @@ class AccessRulesIT extends ApiIntegrationTest {
 
     private static List<String> ids(JsonNode entries) {
         return entries.valueStream().map(entry -> entry.get("id").asString()).toList();
-    }
-
-    private String roleOf(Browser as, String userId) {
-        return body(get("/api/users", as)).valueStream()
-                .filter(user -> user.get("id").asString().equals(userId))
-                .map(user -> user.get("roleId").asString())
-                .findFirst().orElseThrow();
     }
 
     private static List<String> emails(JsonNode users) {

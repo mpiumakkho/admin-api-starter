@@ -12,8 +12,9 @@ import java.util.UUID;
  * What people may and may not do to their own account (API.md, rule 4; access-rules.ts in admin-ng-starter):
  *
  * <ul>
- *   <li>nobody suspends or deletes themselves or changes their own role, so an administrator cannot lock everyone
- *       out by accident (the role side, changing your own role's permissions, is in RoleManagementService);
+ *   <li>nobody suspends or deletes themselves or changes their own role assignments (forbidSelf, in
+ *       RoleAssignmentService), so an administrator cannot lock everyone out by accident (the role side, changing the
+ *       permissions of a role you hold, is in RoleManagementService);
  *   <li>everyone may change their own name, phone and photo without users.edit.
  * </ul>
  */
@@ -31,8 +32,8 @@ public final class SelfProtectionPolicy {
         }
     }
 
-    public static void forbidOwnRoleOrStatus(Actor actor, UUID userId, boolean roleChanged, boolean statusChanged) {
-        if (actor.is(userId) && (roleChanged || statusChanged)) {
+    public static void forbidOwnStatus(Actor actor, UUID userId, boolean statusChanged) {
+        if (actor.is(userId) && statusChanged) {
             throw SELF_CHANGE.exception();
         }
     }

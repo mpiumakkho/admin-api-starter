@@ -48,6 +48,7 @@ public class RoleMapper {
 
     private static RoleResponse toResponse(Role role, Map<String, Integer> order) {
         return new RoleResponse(role.getId(), role.getName(), role.getDescription(), role.getTone(),
-                ordered(role.getPermissions(), order), role.isSystem());
+                ordered(role.getPermissions(), order),
+                new RoleResponse.Assignment(role.getAssignmentMaxDays(), role.isAssignmentReasonRequired()), role.isSystem());
     }
 }

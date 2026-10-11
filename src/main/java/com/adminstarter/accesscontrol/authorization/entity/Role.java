@@ -15,7 +15,10 @@ import java.util.UUID;
 import org.hibernate.annotations.UuidGenerator;
 import org.jspecify.annotations.Nullable;
 
-/** A named set of permissions; every user holds exactly one role */
+/**
+ * A named set of permissions. People hold roles through role assignments (P-019), each by the rules here: an end within
+ * {@code assignmentMaxDays} days, or a reason.
+ */
 @Entity
 @Table(name = "roles")
 public class Role {
@@ -38,6 +41,10 @@ public class Role {
     @CollectionTable(name = "role_permissions", joinColumns = @JoinColumn(name = "role_id"))
     @Column(name = "permission_code")
     private Set<String> permissions = new HashSet<>();
+
+    /** Each assignment must end within this many days of starting; null: no limit, and it may be for good */
+    private @Nullable Integer assignmentMaxDays;
+    private boolean assignmentReasonRequired;
 
     private Instant createdAt;
     private Instant updatedAt;
@@ -63,6 +70,19 @@ public class Role {
         this.permissions.retainAll(permissions);
         this.permissions.addAll(permissions);
         this.updatedAt = now;
+    }
+
+    public void changeAssignmentRules(@Nullable Integer maxDays, boolean reasonRequired, Instant now) {
+        this.assignmentMaxDays = maxDays;
+        this.assignmentReasonRequired = reasonRequired;
+        this.updatedAt = now;
+    }
+
+    /** A built-in role takes the name, description and permissions its RoleTemplate gives it, on every start */
+    public void redefine(String name, String description, Set<String> permissions, Instant now) {
+        if (!this.name.equals(name) || !this.description.equals(description) || !this.permissions.equals(permissions)) {
+            update(name, description, tone, permissions, now);
+        }
     }
 
     public UUID getId() {
@@ -91,5 +111,13 @@ public class Role {
 
     public Set<String> getPermissions() {
         return Set.copyOf(permissions);
+    }
+
+    public @Nullable Integer getAssignmentMaxDays() {
+        return assignmentMaxDays;
+    }
+
+    public boolean isAssignmentReasonRequired() {
+        return assignmentReasonRequired;
     }
 }

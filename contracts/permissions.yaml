@@ -17,7 +17,8 @@ permissions:
   - { code: "settings.view",   description: "View settings" }
   - { code: "settings.manage", description: "Change settings" }
 
-# Created on the first start only; afterwards they belong to whoever manages roles
+# Created on the first start. Built-in ones (is_system) take this name, description and these permissions again on
+# every start (P-019); the others belong to whoever manages roles once created.
 roles:
   - { code: ADMINISTRATOR, name: Administrator, is_system: true,  permissions: "*", source: CoreRoles }
   - { code: MANAGER,       name: Manager,       is_system: true,  source: AppRoles,
@@ -48,7 +49,10 @@ endpoints:
   - { method: POST,   path: "/api/users/import",                  permission: users.create }
   - { method: PATCH,  path: "/api/users/{id}",                    permission: authenticated, note: "own name, phone, photo without users.edit" }
   - { method: POST,   path: "/api/users/status",                  permission: users.edit }
-  - { method: POST,   path: "/api/users/role",                    permission: users.edit }
+  - { method: POST,   path: "/api/role-assignments",              permission: users.edit }
+  - { method: PATCH,  path: "/api/role-assignments/{id}",         permission: users.edit }
+  - { method: DELETE, path: "/api/role-assignments/{id}",         permission: users.edit }
+  - { method: POST,   path: "/api/role-assignments/batch",        permission: users.edit }
   - { method: POST,   path: "/api/users/delete",                  permission: users.delete }
   - { method: POST,   path: "/api/users/{id}/reset-password",     permission: users.edit }
   - { method: POST,   path: "/api/users/{id}/resend-invite",      permission: users.create }

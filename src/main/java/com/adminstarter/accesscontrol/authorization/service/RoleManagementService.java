@@ -3,6 +3,7 @@ package com.adminstarter.accesscontrol.authorization.service;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.FORBIDDEN;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.INVALID_REQUEST;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.NOT_FOUND;
+import static com.adminstarter.accesscontrol.common.constant.ErrorCode.ROLE_IN_USE;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.SELF_CHANGE;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.SYSTEM_ROLE;
 
@@ -17,6 +18,7 @@ import com.adminstarter.accesscontrol.authorization.event.RoleUpdated;
 import com.adminstarter.accesscontrol.authorization.policy.GrantPolicy;
 import com.adminstarter.accesscontrol.authorization.repository.PermissionRepository;
 import com.adminstarter.accesscontrol.authorization.repository.RoleRepository;
+import com.adminstarter.accesscontrol.authorization.spi.RoleHolderProvider;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.common.dto.FieldChange;
 import java.time.Clock;
@@ -44,14 +46,16 @@ public class RoleManagementService {
     private final RoleRepository roles;
     private final PermissionRepository permissions;
     private final RoleMapper mapper;
+    private final RoleHolderProvider holders;
     private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public RoleManagementService(RoleRepository roles, PermissionRepository permissions, RoleMapper mapper,
-            ApplicationEventPublisher events, Clock clock) {
+            RoleHolderProvider holders, ApplicationEventPublisher events, Clock clock) {
         this.roles = roles;
         this.permissions = permissions;
         this.mapper = mapper;
+        this.holders = holders;
         this.events = events;
         this.clock = clock;
     }
@@ -70,6 +74,9 @@ public class RoleManagementService {
         }
         var role = roles.save(new Role(null, request.name(), Objects.requireNonNullElse(request.description(), ""),
                 Objects.requireNonNullElse(request.tone(), DEFAULT_TONE), false, granted, now()));
+        if (request.assignment() != null) {
+            role.changeAssignmentRules(request.assignment().maxDays(), request.assignment().reasonRequired(), now());
+        }
         var order = mapper.order();
         events.publishEvent(new RoleCreated(actor.userId(), role.getId(), role.getName(),
                 List.of(FieldChange.list("permissions", RoleMapper.ordered(granted, order), List.of()))));
@@ -86,26 +93,37 @@ public class RoleManagementService {
         var granted = request.permissions() == null ? role.getPermissions() : known(request.permissions());
         var added = difference(granted, role.getPermissions());
         var removed = difference(role.getPermissions(), granted);
+        var name = Objects.requireNonNullElse(request.name(), role.getName());
+        var description = Objects.requireNonNullElse(request.description(), role.getDescription());
+        // A built-in role's name, description and permissions come from its RoleTemplate (P-019)
+        if (role.isSystem() && (!added.isEmpty() || !removed.isEmpty() || !name.equals(role.getName())
+                || !description.equals(role.getDescription()))) {
+            throw SYSTEM_ROLE.exception();
+        }
         if (!added.isEmpty() || !removed.isEmpty()) {
-            if (id.equals(actor.roleId())) {
+            // Nobody changes the permissions of a role they hold now
+            if (actor.roleIds().contains(id)) {
                 throw SELF_CHANGE.exception();
             }
             if (!GrantPolicy.holdsAll(actor.permissions(), union(added, removed))) {
                 throw FORBIDDEN.exception();
             }
         }
-        var name = Objects.requireNonNullElse(request.name(), role.getName());
-        var description = Objects.requireNonNullElse(request.description(), role.getDescription());
         var tone = Objects.requireNonNullElse(request.tone(), role.getTone());
+        var maxDays = request.assignment() == null ? role.getAssignmentMaxDays() : request.assignment().maxDays();
+        var reasonRequired = request.assignment() == null ? role.isAssignmentReasonRequired() : request.assignment().reasonRequired();
         var changes = new ArrayList<FieldChange>();
         addIfChanged(changes, "name", role.getName(), name);
         addIfChanged(changes, "description", role.getDescription(), description);
         addIfChanged(changes, "tone", role.getTone(), tone);
+        addIfChanged(changes, "maxDays", String.valueOf(role.getAssignmentMaxDays()), String.valueOf(maxDays));
+        addIfChanged(changes, "reasonRequired", String.valueOf(role.isAssignmentReasonRequired()), String.valueOf(reasonRequired));
         if (!added.isEmpty() || !removed.isEmpty()) {
             var order = mapper.order();
             changes.add(FieldChange.list("permissions", RoleMapper.ordered(added, order), RoleMapper.ordered(removed, order)));
         }
         role.update(name, description, tone, granted, now());
+        role.changeAssignmentRules(maxDays, reasonRequired, now());
         events.publishEvent(new RoleUpdated(actor.userId(), id, name, List.copyOf(changes)));
         return mapper.toResponse(role);
     }
@@ -119,13 +137,16 @@ public class RoleManagementService {
         if (role.isSystem()) {
             throw SYSTEM_ROLE.exception();
         }
+        // Held now or later: in use. Ended assignments of it go with it (on delete cascade)
+        if (holders.heldNowOrLater(id)) {
+            throw ROLE_IN_USE.exception();
+        }
         var removed = RoleMapper.ordered(role.getPermissions(), mapper.order());
         events.publishEvent(new RoleDeleted(actor.userId(), id, role.getName(),
                 List.of(FieldChange.list("permissions", List.of(), removed))));
         roles.delete(role);
-        // Users holding the role, or the settings giving it to new users, still point at it: the foreign keys
-        // fk_users_role and fk_admin_settings_default_role refuse the delete, and ApiExceptionHandler answers
-        // role_in_use or default_role. Flushing here makes that happen inside this transaction.
+        // The settings may still give it to new users: the foreign key fk_admin_settings_default_role refuses the
+        // delete, and ApiExceptionHandler answers default_role. Flushing here makes that happen inside this transaction.
         roles.flush();
     }
 
