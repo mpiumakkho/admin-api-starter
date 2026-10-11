@@ -21,4 +21,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("select count(u) > 0 from User u where lower(u.email) = lower(:email)")
     boolean emailTaken(String email);
+
+    boolean existsByBranchId(UUID branchId);
 }

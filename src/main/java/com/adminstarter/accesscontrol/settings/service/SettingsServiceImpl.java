@@ -84,6 +84,7 @@ public class SettingsServiceImpl implements SettingsService {
         var passwordHistory = Objects.requireNonNullElse(request.passwordHistory(), current.getPasswordHistory());
         var activityRetentionDays =
                 Objects.requireNonNullElse(request.activityRetentionDays(), current.getActivityRetentionDays());
+        var branchesEnabled = Objects.requireNonNullElse(request.branchesEnabled(), current.isBranchesEnabled());
 
         // In the order of AdminSettings in models.ts, the two lists last, as items added and removed
         var changes = new ArrayList<FieldChange>();
@@ -93,12 +94,14 @@ public class SettingsServiceImpl implements SettingsService {
         addIfChanged(changes, "passwordMinLength", current.getPasswordMinLength(), passwordMinLength);
         addIfChanged(changes, "passwordHistory", current.getPasswordHistory(), passwordHistory);
         addIfChanged(changes, "activityRetentionDays", current.getActivityRetentionDays(), activityRetentionDays);
+        addIfChanged(changes, "branchesEnabled", current.isBranchesEnabled(), branchesEnabled);
         addIfListChanged(changes, "allowedDomains", current.getAllowedDomains(), domains);
         addIfListChanged(changes, "twoFactorRoleIds", strings(current.getTwoFactorRoleIds()), strings(twoFactorRoleIds));
 
         var now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         current.update(defaultRoleId, domains, inviteExpiryDays, sessionTimeoutMinutes, now);
         current.updateAccountRules(twoFactorRoleIds, passwordMinLength, passwordHistory, activityRetentionDays, now);
+        current.changeBranchesEnabled(branchesEnabled, now);
         if (!changes.isEmpty()) {
             events.publishEvent(new SettingsUpdated(actor.userId(), List.copyOf(changes)));
         }
@@ -152,6 +155,6 @@ public class SettingsServiceImpl implements SettingsService {
     private static SettingsResponse toResponse(AdminSettings settings) {
         return new SettingsResponse(settings.getDefaultRoleId(), settings.getAllowedDomains(), settings.getInviteExpiryDays(),
                 settings.getSessionTimeoutMinutes(), settings.getTwoFactorRoleIds(), settings.getPasswordMinLength(),
-                settings.getPasswordHistory(), settings.getActivityRetentionDays());
+                settings.getPasswordHistory(), settings.getActivityRetentionDays(), settings.isBranchesEnabled());
     }
 }

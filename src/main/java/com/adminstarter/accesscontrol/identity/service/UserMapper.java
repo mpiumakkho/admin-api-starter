@@ -24,7 +24,7 @@ public class UserMapper {
     /** With assignments already loaded, as for the whole list */
     public UserResponse toResponse(User user, boolean twoFactor, List<RoleAssignment> roles) {
         return new UserResponse(user.getId(), user.getFirstName(), user.getLastName(), user.getEmail(), user.getPhone(),
-                user.getDepartment(), roles.stream().map(RoleAssignmentResolver::toResponse).toList(),
+                user.getDepartment(), user.getBranchId(), roles.stream().map(RoleAssignmentResolver::toResponse).toList(),
                 user.getStatus().value(), user.getAvatar(), user.getCreatedAt(), user.getLastActiveAt(), twoFactor);
     }
 

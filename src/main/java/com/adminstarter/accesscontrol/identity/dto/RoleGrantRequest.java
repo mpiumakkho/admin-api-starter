@@ -7,11 +7,12 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * RoleGrant: a role to give someone. {@code startsAt} left out, or earlier than now, means now; {@code endsAt} null
- * means for good.
+ * RoleGrant: a role to give someone. {@code branchId} null gives it for the whole organization, a branch limits it to
+ * that branch (P-020); {@code startsAt} left out, or earlier than now, means now; {@code endsAt} null means for good.
  */
 public record RoleGrantRequest(
         @NotNull UUID roleId,
+        @Nullable UUID branchId,
         @Nullable Instant startsAt,
         @Nullable Instant endsAt,
         @Nullable @Size(max = MAX_REASON) String reason) {

@@ -62,11 +62,11 @@ public class RoleAssignmentResolver implements RoleHolderProvider {
     }
 
     static RoleAssignmentResponse toResponse(RoleAssignment item) {
-        return new RoleAssignmentResponse(item.getId(), item.getUserId(), item.getRoleId(), item.getStartsAt(),
-                item.getEndsAt(), item.getReason(), item.getAssignedBy(), item.getAssignedAt());
+        return new RoleAssignmentResponse(item.getId(), item.getUserId(), item.getRoleId(), item.getBranchId(),
+                item.getStartsAt(), item.getEndsAt(), item.getReason(), item.getAssignedBy(), item.getAssignedAt());
     }
 
     static AccountSummary.Grant toGrant(RoleAssignment item) {
-        return new AccountSummary.Grant(item.getRoleId(), item.getStartsAt(), item.getEndsAt());
+        return new AccountSummary.Grant(item.getRoleId(), item.getBranchId(), item.getStartsAt(), item.getEndsAt());
     }
 }

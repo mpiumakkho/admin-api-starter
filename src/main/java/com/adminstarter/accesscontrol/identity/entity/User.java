@@ -23,6 +23,8 @@ public class User {
     private String email;
     private String phone;
     private String department;
+    /** The branch they belong to, or null for none (P-020) */
+    private @Nullable UUID branchId;
     /** Image URL or data URL; empty shows initials */
     private String avatar;
 
@@ -52,6 +54,11 @@ public class User {
         this.department = department;
         this.avatar = avatar;
         this.status = status;
+        this.updatedAt = now;
+    }
+
+    public void moveToBranch(@Nullable UUID branchId, Instant now) {
+        this.branchId = branchId;
         this.updatedAt = now;
     }
 
@@ -91,6 +98,10 @@ public class User {
 
     public String getDepartment() {
         return department;
+    }
+
+    public @Nullable UUID getBranchId() {
+        return branchId;
     }
 
     public String getAvatar() {

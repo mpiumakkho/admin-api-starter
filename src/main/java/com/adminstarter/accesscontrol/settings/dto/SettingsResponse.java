@@ -12,4 +12,5 @@ public record SettingsResponse(
         List<UUID> twoFactorRoleIds,
         int passwordMinLength,
         int passwordHistory,
-        int activityRetentionDays) {}
+        int activityRetentionDays,
+        boolean branchesEnabled) {}

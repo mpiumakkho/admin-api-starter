@@ -10,7 +10,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * One role given to one person, from a start until an end or for good (P-019): NIST RBAC's user assignment, with the
- * start and end of Microsoft Entra's role assignments. It counts while {@code startsAt <= now < endsAt}.
+ * start and end of Microsoft Entra's role assignments. It counts while {@code startsAt <= now < endsAt}, for the whole
+ * organization or, as an Azure RBAC scope, for one branch (P-020).
  */
 @Entity
 @Table(name = "role_assignments")
@@ -22,6 +23,8 @@ public class RoleAssignment {
 
     private UUID userId;
     private UUID roleId;
+    /** Null: the whole organization; otherwise the branch it is limited to (P-020) */
+    private @Nullable UUID branchId;
     private Instant startsAt;
     /** Null: for good */
     private @Nullable Instant endsAt;
@@ -34,10 +37,11 @@ public class RoleAssignment {
 
     protected RoleAssignment() {}
 
-    public RoleAssignment(UUID userId, UUID roleId, Instant startsAt, @Nullable Instant endsAt, String reason,
-            @Nullable UUID assignedBy, Instant now) {
+    public RoleAssignment(UUID userId, UUID roleId, @Nullable UUID branchId, Instant startsAt, @Nullable Instant endsAt,
+            String reason, @Nullable UUID assignedBy, Instant now) {
         this.userId = userId;
         this.roleId = roleId;
+        this.branchId = branchId;
         this.startsAt = startsAt;
         this.endsAt = endsAt;
         this.reason = reason;
@@ -80,6 +84,10 @@ public class RoleAssignment {
 
     public UUID getRoleId() {
         return roleId;
+    }
+
+    public @Nullable UUID getBranchId() {
+        return branchId;
     }
 
     public Instant getStartsAt() {

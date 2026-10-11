@@ -31,6 +31,12 @@ public enum ErrorCode {
     ALREADY_ASSIGNED(HttpStatus.CONFLICT),
     /** Nobody active would keep a role with every permission for good (P-019) */
     LAST_ADMINISTRATOR(HttpStatus.CONFLICT),
+    /** Another branch has the code, ignoring case (P-020) */
+    CODE_TAKEN(HttpStatus.CONFLICT),
+    /** People belong to the branch, or hold a role there now or later (P-020) */
+    BRANCH_IN_USE(HttpStatus.CONFLICT),
+    /** The branch is closed: nobody new joins it or gets a role there (P-020) */
+    BRANCH_CLOSED(HttpStatus.CONFLICT),
     EMAIL_DOMAIN(HttpStatus.UNPROCESSABLE_CONTENT),
     WEAK_PASSWORD(HttpStatus.UNPROCESSABLE_CONTENT),
     /** One of the user's most recent passwords (the settings' passwordHistory, P-017) */

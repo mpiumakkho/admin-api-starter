@@ -13,6 +13,7 @@ public record UserResponse(
         String email,
         String phone,
         String department,
+        @Nullable UUID branchId,
         List<RoleAssignmentResponse> roles,
         String status,
         String avatar,

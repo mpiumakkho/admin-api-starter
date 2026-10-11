@@ -8,6 +8,9 @@ import com.adminstarter.accesscontrol.authentication.event.SignedIn;
 import com.adminstarter.accesscontrol.authorization.event.RoleCreated;
 import com.adminstarter.accesscontrol.authorization.event.RoleDeleted;
 import com.adminstarter.accesscontrol.authorization.event.RoleUpdated;
+import com.adminstarter.accesscontrol.branch.event.BranchCreated;
+import com.adminstarter.accesscontrol.branch.event.BranchDeleted;
+import com.adminstarter.accesscontrol.branch.event.BranchUpdated;
 import com.adminstarter.accesscontrol.common.context.RequestContext;
 import com.adminstarter.accesscontrol.common.dto.FieldChange;
 import com.adminstarter.accesscontrol.identity.event.RoleAssignmentAdded;
@@ -143,6 +146,21 @@ public class AuditListener {
     @EventListener
     void on(RoleDeleted event) {
         record(event.actorId(), "role.deleted", event.name(), null, event.changes());
+    }
+
+    @EventListener
+    void on(BranchCreated event) {
+        record(event.actorId(), "branch.created", event.name(), event.branchId(), event.changes());
+    }
+
+    @EventListener
+    void on(BranchUpdated event) {
+        record(event.actorId(), "branch.updated", event.name(), event.branchId(), event.changes());
+    }
+
+    @EventListener
+    void on(BranchDeleted event) {
+        record(event.actorId(), "branch.deleted", event.name(), null, event.changes());
     }
 
     @EventListener

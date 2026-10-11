@@ -10,11 +10,12 @@ import org.jspecify.annotations.Nullable;
 public record CreateRoleAssignmentRequest(
         @NotNull UUID userId,
         @NotNull UUID roleId,
+        @Nullable UUID branchId,
         @Nullable Instant startsAt,
         @Nullable Instant endsAt,
         @Nullable @Size(max = RoleGrantRequest.MAX_REASON) String reason) {
 
     public RoleGrantRequest grant() {
-        return new RoleGrantRequest(roleId, startsAt, endsAt, reason);
+        return new RoleGrantRequest(roleId, branchId, startsAt, endsAt, reason);
     }
 }

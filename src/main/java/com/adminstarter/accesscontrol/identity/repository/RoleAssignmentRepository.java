@@ -21,14 +21,18 @@ public interface RoleAssignmentRepository extends JpaRepository<RoleAssignment, 
     boolean heldNowOrLater(UUID roleId, Instant now);
 
     /**
-     * How many active users hold, now and for good, one of these roles: those with every permission. At least one must
-     * stay (last_administrator).
+     * How many active users hold, now, for good and for the whole organization, one of these roles: those with every
+     * permission. At least one must stay (last_administrator).
      */
     @Query("""
             select count(distinct a.userId) from RoleAssignment a, User u
             where u.id = a.userId and u.status = com.adminstarter.accesscontrol.identity.entity.UserStatus.ACTIVE
-              and a.roleId in :roleIds and a.endsAt is null and a.startsAt <= :now""")
+              and a.roleId in :roleIds and a.branchId is null and a.endsAt is null and a.startsAt <= :now""")
     long countPermanentHolders(Collection<UUID> roleIds, Instant now);
+
+    /** Whether anyone holds a role limited to the branch now or will hold one later */
+    @Query("select count(a) > 0 from RoleAssignment a where a.branchId = :branchId and (a.endsAt is null or a.endsAt > :now)")
+    boolean heldNowOrLaterIn(UUID branchId, Instant now);
 
     /** Ended, and not yet in the activity log */
     @Query("select a from RoleAssignment a where a.endsAt <= :now and a.expiryLoggedAt is null")

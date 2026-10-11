@@ -9,6 +9,7 @@ import static com.adminstarter.accesscontrol.common.constant.ErrorCode.REASON_RE
 
 import com.adminstarter.accesscontrol.authorization.dto.RoleResponse;
 import com.adminstarter.accesscontrol.authorization.service.RoleService;
+import com.adminstarter.accesscontrol.branch.service.BranchService;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.common.dto.FieldChange;
 import com.adminstarter.accesscontrol.identity.dto.CreateRoleAssignmentRequest;
@@ -54,19 +55,21 @@ public class RoleAssignmentService {
     private final UserCredentialRepository credentials;
     private final RoleService roles;
     private final SettingsService settings;
+    private final BranchService branches;
     private final UserMapper mapper;
     private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public RoleAssignmentService(RoleAssignmentRepository assignments, RoleAssignmentResolver resolver,
             UserAccessService access, UserCredentialRepository credentials, RoleService roles, SettingsService settings,
-            UserMapper mapper, ApplicationEventPublisher events, Clock clock) {
+            BranchService branches, UserMapper mapper, ApplicationEventPublisher events, Clock clock) {
         this.assignments = assignments;
         this.resolver = resolver;
         this.access = access;
         this.credentials = credentials;
         this.roles = roles;
         this.settings = settings;
+        this.branches = branches;
         this.mapper = mapper;
         this.events = events;
         this.clock = clock;
@@ -147,9 +150,12 @@ public class RoleAssignmentService {
         var changed = new ArrayList<User>();
         if (request.add() != null) {
             var roleId = request.add().roleId();
+            var branchId = request.add().branchId();
             for (var user : users) {
                 var held = resolver.of(user.getId());
-                if (held.stream().noneMatch(item -> item.getRoleId().equals(roleId) && item.heldAt(now))) {
+                // Held in the same scope: nothing to change
+                if (held.stream().noneMatch(item -> item.getRoleId().equals(roleId)
+                        && Objects.equals(item.getBranchId(), branchId) && item.heldAt(now))) {
                     give(actor, user, request.add(), held);
                     changed.add(user);
                 }
@@ -178,7 +184,7 @@ public class RoleAssignmentService {
     /** A new user's first roles; none gives the settings' default role, for good */
     public void giveFirstRoles(Actor actor, User user, @Nullable List<RoleGrantRequest> grants) {
         var given = grants == null || grants.isEmpty()
-                ? List.of(new RoleGrantRequest(settings.current().defaultRoleId(), null, null, null))
+                ? List.of(new RoleGrantRequest(settings.current().defaultRoleId(), null, null, null, null))
                 : grants;
         var held = new ArrayList<RoleAssignment>();
         for (var grant : given) {
@@ -189,7 +195,7 @@ public class RoleAssignmentService {
     /** Checks a new user's roles as giving them would, without saving anything */
     public void requireCanGive(Actor actor, @Nullable List<RoleGrantRequest> grants) {
         var given = grants == null || grants.isEmpty()
-                ? List.of(new RoleGrantRequest(settings.current().defaultRoleId(), null, null, null))
+                ? List.of(new RoleGrantRequest(settings.current().defaultRoleId(), null, null, null, null))
                 : grants;
         var held = new ArrayList<RoleAssignment>();
         for (var grant : given) {
@@ -214,6 +220,9 @@ public class RoleAssignmentService {
         var assignment = assignments.save(check(actor, user.getId(), grant, held));
         var changes = new ArrayList<FieldChange>();
         changes.add(FieldChange.set("roleId", assignment.getRoleId().toString()));
+        if (assignment.getBranchId() != null) {
+            changes.add(FieldChange.set("branchId", assignment.getBranchId().toString()));
+        }
         if (assignment.getStartsAt().isAfter(assignment.getAssignedAt())) {
             changes.add(FieldChange.set("startsAt", assignment.getStartsAt().toString()));
         }
@@ -228,11 +237,15 @@ public class RoleAssignmentService {
     }
 
     /**
-     * The actor may give the role, the dates make sense, the role's own rules hold, and it does not overlap one of the
-     * same role the person already has
+     * The actor may give the role, the branch is open, the dates make sense, the role's own rules hold, and it does not
+     * overlap one of the same role in the same scope the person already has
      */
     private RoleAssignment check(Actor actor, UUID userId, RoleGrantRequest grant, List<RoleAssignment> held) {
         var role = roles.requireAssignable(actor, grant.roleId());
+        var branchId = grant.branchId();
+        if (branchId != null) {
+            branches.requireOpen(branchId);
+        }
         var now = now();
         var start = grant.startsAt() == null ? now : latest(millis(grant.startsAt()), now);
         var end = grant.endsAt() == null ? null : millis(grant.endsAt());
@@ -244,10 +257,11 @@ public class RoleAssignmentService {
         if (role.assignment().reasonRequired() && reason.isEmpty()) {
             throw REASON_REQUIRED.exception();
         }
-        if (held.stream().anyMatch(item -> item.getRoleId().equals(grant.roleId()) && item.overlaps(start, end))) {
+        if (held.stream().anyMatch(item -> item.getRoleId().equals(grant.roleId())
+                && Objects.equals(item.getBranchId(), branchId) && item.overlaps(start, end))) {
             throw ALREADY_ASSIGNED.exception();
         }
-        return new RoleAssignment(userId, grant.roleId(), start, end, reason, actor.userId(), now);
+        return new RoleAssignment(userId, grant.roleId(), branchId, start, end, reason, actor.userId(), now);
     }
 
     /** The person an assignment belongs to: someone the actor may change, and not the actor */

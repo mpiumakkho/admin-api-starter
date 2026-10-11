@@ -38,6 +38,8 @@ public class AdminSettings {
     private int passwordHistory;
     /** Activity older than this is deleted every night (P-018) */
     private int activityRetentionDays;
+    /** People belong to branches, and roles can be given for one (P-020); off on a new installation */
+    private boolean branchesEnabled;
 
     private Instant updatedAt;
 
@@ -67,6 +69,11 @@ public class AdminSettings {
         this.passwordMinLength = passwordMinLength;
         this.passwordHistory = passwordHistory;
         this.activityRetentionDays = activityRetentionDays;
+        this.updatedAt = now;
+    }
+
+    public void changeBranchesEnabled(boolean branchesEnabled, Instant now) {
+        this.branchesEnabled = branchesEnabled;
         this.updatedAt = now;
     }
 
@@ -110,5 +117,9 @@ public class AdminSettings {
 
     public int getActivityRetentionDays() {
         return activityRetentionDays;
+    }
+
+    public boolean isBranchesEnabled() {
+        return branchesEnabled;
     }
 }
