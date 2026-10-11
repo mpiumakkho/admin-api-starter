@@ -88,8 +88,10 @@ public class UserLifecycleService {
                 .toList();
     }
 
+    /** A new user's roles are roles given: it needs a recent sign-in (P-023) */
     public UserResponse create(Actor actor, CreateUserRequest request) {
         requireCanCreate(actor, request);
+        actor.requireRecentSignIn();
         return mapper.toResponse(add(actor, request));
     }
 
@@ -102,6 +104,7 @@ public class UserLifecycleService {
                 throw EMAIL_TAKEN.exception();
             }
         }
+        actor.requireRecentSignIn();
         return request.users().stream().map(draft -> mapper.toResponse(add(actor, draft))).toList();
     }
 
@@ -176,6 +179,7 @@ public class UserLifecycleService {
     public void delete(Actor actor, DeleteUsersRequest request) {
         SelfProtectionPolicy.forbidSelf(actor, request.ids());
         var targets = request.ids().stream().distinct().map(id -> access.findManageable(actor, id)).toList();
+        actor.requireRecentSignIn();
         var reason = settings.requireReason("delete", request.reason());
         var now = clock.instant();
         for (var user : targets) {
@@ -195,11 +199,14 @@ public class UserLifecycleService {
 
     /**
      * Emails a link to set a new password; for someone else, the old one stops working and their sessions end, and it
-     * needs a reason when the settings say so (P-021)
+     * needs a recent sign-in (P-023) and a reason when the settings say so (P-021)
      */
     public void resetPassword(Actor actor, UUID id, @Nullable String reason) {
         var user = access.findManageable(actor, id);
         var self = actor.is(id);
+        if (!self) {
+            actor.requireRecentSignIn();
+        }
         var why = self ? "" : settings.requireReason("resetSignIn", reason);
         if (!self) {
             credentialService.clearPassword(id);

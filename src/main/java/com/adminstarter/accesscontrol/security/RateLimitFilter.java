@@ -17,7 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Limits the requests that guess at secrets (passwords, refresh cookies, email links) to so many a minute from one
- * IP address, answering 429 too_many_requests beyond that. Wrong passwords for one account are limited separately,
+ * IP address, answering 429 too_many_requests beyond that; confirming the password again (P-023) counts as signing in. Wrong passwords for one account are limited separately,
  * by the lockout. Buckets live in memory: each server instance counts on its own.
  */
 public class RateLimitFilter extends OncePerRequestFilter {
@@ -33,6 +33,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         var limits = properties.rateLimit();
         this.perMinute = Map.of(
                 "/api/auth/login", limits.login(),
+                "/api/me/reauthenticate", limits.login(),
                 "/api/auth/refresh", limits.refresh(),
                 "/api/auth/activate", limits.emailLinks(),
                 "/api/auth/password-reset/request", limits.emailLinks(),

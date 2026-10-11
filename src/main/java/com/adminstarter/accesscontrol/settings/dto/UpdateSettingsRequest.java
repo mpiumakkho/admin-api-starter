@@ -20,7 +20,8 @@ public record UpdateSettingsRequest(
         @Nullable @Min(0) @Max(24) Integer passwordHistory,
         @Nullable @Min(30) @Max(3650) Integer activityRetentionDays,
         @Nullable Boolean branchesEnabled,
-        @Nullable @Size(max = 10) List<@NotNull @Pattern(regexp = REASON_ACTIONS) String> reasonsRequired) {
+        @Nullable @Size(max = 10) List<@NotNull @Pattern(regexp = REASON_ACTIONS) String> reasonsRequired,
+        @Nullable @Min(0) @Max(1440) Integer reauthMinutes) {
 
     /** The changes that can need a reason (ReasonAction in admin-ng-starter's models.ts, P-021) */
     public static final String REASON_ACTIONS = "status|delete|removeRole|resetSignIn|endSessions";

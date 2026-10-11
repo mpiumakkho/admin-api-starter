@@ -19,6 +19,8 @@ public enum ErrorCode {
     INVITE_PENDING(HttpStatus.FORBIDDEN),
     /** The role requires two-step sign-in (the settings' twoFactorRoleIds) and it is off (P-016) */
     TWO_FACTOR_MANDATORY(HttpStatus.FORBIDDEN),
+    /** A risky change, and the person last signed in or confirmed their password too long ago (P-023) */
+    REAUTH_REQUIRED(HttpStatus.FORBIDDEN),
     NOT_FOUND(HttpStatus.NOT_FOUND),
     INVALID_REQUEST(HttpStatus.BAD_REQUEST),
     INVALID_TOKEN(HttpStatus.BAD_REQUEST),

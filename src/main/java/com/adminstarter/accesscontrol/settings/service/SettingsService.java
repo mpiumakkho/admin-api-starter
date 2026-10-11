@@ -2,6 +2,7 @@ package com.adminstarter.accesscontrol.settings.service;
 
 import com.adminstarter.accesscontrol.settings.dto.PasswordPolicyResponse;
 import com.adminstarter.accesscontrol.settings.dto.SettingsResponse;
+import java.time.Duration;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
@@ -15,6 +16,12 @@ public interface SettingsService {
      * on every request: cached, evicted after commit whenever the settings change.
      */
     boolean requiresTwoFactor(UUID roleId);
+
+    /**
+     * How long after signing in, or confirming their password, someone can make the risky changes (reauthMinutes,
+     * P-023); zero never asks. Asked on every request: cached, evicted after commit whenever the settings change.
+     */
+    Duration reauthWindow();
 
     /** The password rules (P-017), which anyone may read, signed in or not: GET /api/auth/password-policy */
     PasswordPolicyResponse passwordPolicy();

@@ -9,12 +9,14 @@ import static com.adminstarter.accesscontrol.common.constant.ErrorCode.UNAUTHENT
 
 import com.adminstarter.accesscontrol.AccessControlProperties;
 import com.adminstarter.accesscontrol.authentication.dto.LoginRequest;
+import com.adminstarter.accesscontrol.authentication.dto.ReauthenticateRequest;
 import com.adminstarter.accesscontrol.authentication.dto.TokenResponse;
 import com.adminstarter.accesscontrol.authentication.entity.RefreshToken;
 import com.adminstarter.accesscontrol.authentication.entity.UserSession;
 import com.adminstarter.accesscontrol.authentication.event.SignedIn;
 import com.adminstarter.accesscontrol.authentication.repository.RefreshTokenRepository;
 import com.adminstarter.accesscontrol.authentication.repository.UserSessionRepository;
+import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.common.context.RequestContext;
 import com.adminstarter.accesscontrol.common.exception.AccessControlException;
 import com.adminstarter.accesscontrol.identity.dto.AccountSummary;
@@ -32,8 +34,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Sign-in, refresh and sign-out. Refusals still commit what they changed (a wrong password counts, a reused refresh
- * token ends its session), hence noRollbackFor.
+ * Sign-in, refresh, sign-out, and confirming the password again (P-023). Refusals still commit what they changed (a
+ * wrong password counts, a reused refresh token ends its session), hence noRollbackFor.
  */
 @Service
 @Transactional(noRollbackFor = AccessControlException.class)
@@ -85,14 +87,7 @@ public class LoginService {
         if (!account.active()) {
             throw ("suspended".equals(account.status()) ? ACCOUNT_SUSPENDED : INVITE_PENDING).exception();
         }
-        if (account.twoFactor()) {
-            if (request.code() == null || request.code().isBlank()) {
-                throw TWO_FACTOR_REQUIRED.exception();
-            }
-            if (!credentials.checkTwoFactorCode(account.id(), request.code())) {
-                throw INVALID_CODE.exception();
-            }
-        }
+        checkCode(account, request.code());
         credentials.signInSucceeded(account.id());
         users.recordSignIn(account.id());
 
@@ -129,6 +124,21 @@ public class LoginService {
         return answer(account, session, newRefreshToken(session, now));
     }
 
+    /**
+     * The signed-in person proves who they are again, for the risky changes (P-023): their password, and the code with
+     * two-step sign-in on. Wrong answers count towards the lockout, as at sign-in. Notes the time on the session of the
+     * access token.
+     */
+    public void reauthenticate(Actor actor, ReauthenticateRequest request) {
+        var account = users.findAccount(actor.userId()).filter(AccountSummary::active).orElseThrow(UNAUTHENTICATED::exception);
+        if (!credentials.checkPassword(account.id(), request.password())) {
+            throw INVALID_CREDENTIALS.exception();
+        }
+        checkCode(account, request.code());
+        credentials.signInSucceeded(account.id());
+        sessions.findById(actor.sessionId()).orElseThrow(UNAUTHENTICATED::exception).verified(clock.instant());
+    }
+
     /** Ends the cookie's session, if there is one */
     public void logout(@Nullable String presented) {
         if (presented == null) {
@@ -137,6 +147,19 @@ public class LoginService {
         refreshTokens.findByTokenHash(tokens.hash(presented))
                 .flatMap(token -> sessions.findById(token.getSessionId()))
                 .ifPresent(session -> session.end(clock.instant()));
+    }
+
+    /** With two-step sign-in on: two_factor_required without a code, invalid_code for a wrong one, which counts */
+    private void checkCode(AccountSummary account, @Nullable String code) {
+        if (!account.twoFactor()) {
+            return;
+        }
+        if (code == null || code.isBlank()) {
+            throw TWO_FACTOR_REQUIRED.exception();
+        }
+        if (!credentials.checkTwoFactorCode(account.id(), code)) {
+            throw INVALID_CODE.exception();
+        }
     }
 
     private String newRefreshToken(UserSession session, Instant now) {
