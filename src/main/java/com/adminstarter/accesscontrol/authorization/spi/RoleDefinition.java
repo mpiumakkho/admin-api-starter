@@ -9,7 +9,8 @@ import java.util.regex.Pattern;
  * @param code UPPER_SNAKE, how code finds the role again (the settings' default role, the first administrator);
  *     never shown and never checked for access
  * @param tone the badge color: primary, info, success, warning, danger or neutral
- * @param system built-in: can be edited but not deleted
+ * @param system built-in: kept as the template says on every start; only its color and assignment rules change, and it
+ *     cannot be deleted
  * @param permissions codes, or {@link #ALL_PERMISSIONS} for every permission there is
  */
 public record RoleDefinition(String code, String name, String description, String tone, boolean system, Set<String> permissions) {

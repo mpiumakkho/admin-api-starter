@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 class SelfProtectionPolicyTest {
 
-    private final Actor actor = new Actor(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), Set.of("users.view"), false);
+    private final Actor actor = new Actor(UUID.randomUUID(), UUID.randomUUID(), Set.of(UUID.randomUUID()), Set.of("users.view"), false);
     private final UUID someoneElse = UUID.randomUUID();
 
     @Test
@@ -25,14 +25,12 @@ class SelfProtectionPolicyTest {
     }
 
     @Test
-    void nobody_changes_their_own_role_or_status() {
-        assertThatThrownBy(() -> SelfProtectionPolicy.forbidOwnRoleOrStatus(actor, actor.userId(), true, false))
+    void nobody_changes_their_own_status() {
+        assertThatThrownBy(() -> SelfProtectionPolicy.forbidOwnStatus(actor, actor.userId(), true))
                 .extracting("code").isEqualTo(ErrorCode.SELF_CHANGE);
-        assertThatThrownBy(() -> SelfProtectionPolicy.forbidOwnRoleOrStatus(actor, actor.userId(), false, true))
-                .extracting("code").isEqualTo(ErrorCode.SELF_CHANGE);
-        assertThatCode(() -> SelfProtectionPolicy.forbidOwnRoleOrStatus(actor, actor.userId(), false, false))
+        assertThatCode(() -> SelfProtectionPolicy.forbidOwnStatus(actor, actor.userId(), false))
                 .doesNotThrowAnyException();
-        assertThatCode(() -> SelfProtectionPolicy.forbidOwnRoleOrStatus(actor, someoneElse, true, true))
+        assertThatCode(() -> SelfProtectionPolicy.forbidOwnStatus(actor, someoneElse, true))
                 .doesNotThrowAnyException();
     }
 

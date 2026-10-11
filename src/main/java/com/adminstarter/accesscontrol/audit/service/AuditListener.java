@@ -10,6 +10,10 @@ import com.adminstarter.accesscontrol.authorization.event.RoleDeleted;
 import com.adminstarter.accesscontrol.authorization.event.RoleUpdated;
 import com.adminstarter.accesscontrol.common.context.RequestContext;
 import com.adminstarter.accesscontrol.common.dto.FieldChange;
+import com.adminstarter.accesscontrol.identity.event.RoleAssignmentAdded;
+import com.adminstarter.accesscontrol.identity.event.RoleAssignmentExpired;
+import com.adminstarter.accesscontrol.identity.event.RoleAssignmentRemoved;
+import com.adminstarter.accesscontrol.identity.event.RoleAssignmentUpdated;
 import com.adminstarter.accesscontrol.identity.event.TwoFactorChanged;
 import com.adminstarter.accesscontrol.identity.event.UserCreated;
 import com.adminstarter.accesscontrol.identity.event.UserDeleted;
@@ -20,6 +24,7 @@ import com.adminstarter.accesscontrol.identity.event.UserStatusChanged;
 import com.adminstarter.accesscontrol.identity.event.UserUpdated;
 import com.adminstarter.accesscontrol.settings.event.SettingsUpdated;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
@@ -77,6 +82,28 @@ public class AuditListener {
     }
 
     @EventListener
+    void on(RoleAssignmentAdded event) {
+        record(event.actorId(), "role_assignment.added", event.fullName(), event.userId(), event.changes());
+    }
+
+    @EventListener
+    void on(RoleAssignmentUpdated event) {
+        record(event.actorId(), "role_assignment.updated", event.fullName(), event.userId(), event.changes());
+    }
+
+    @EventListener
+    void on(RoleAssignmentRemoved event) {
+        record(event.actorId(), "role_assignment.removed", event.fullName(), event.userId(), event.changes());
+    }
+
+    /** Nobody did it: no actor, and the moment the role ended rather than when the job noticed */
+    @EventListener
+    void on(RoleAssignmentExpired event) {
+        record(null, "role_assignment.expired", event.fullName(), event.userId(),
+                List.of(FieldChange.was("roleId", event.roleId().toString())), event.endedAt());
+    }
+
+    @EventListener
     void on(UserPasswordReset event) {
         record(event.actorId(), "user.password_reset", event.fullName(), event.userId(), List.of());
     }
@@ -124,8 +151,13 @@ public class AuditListener {
     }
 
     private void record(UUID actorId, String action, String targetLabel, @Nullable UUID targetId, List<FieldChange> changes) {
+        record(actorId, action, targetLabel, targetId, changes, clock.instant());
+    }
+
+    private void record(@Nullable UUID actorId, String action, String targetLabel, @Nullable UUID targetId,
+            List<FieldChange> changes, Instant at) {
         var context = RequestContext.currentOrNone();
-        var entry = logs.save(new AuditLog(clock.instant().truncatedTo(ChronoUnit.MILLIS), actorId, action, targetLabel,
+        var entry = logs.save(new AuditLog(at.truncatedTo(ChronoUnit.MILLIS), actorId, action, targetLabel,
                 targetId == null ? null : targetId.toString(), changes.isEmpty() ? null : json.writeValueAsString(changes),
                 context.ip(), context.browser(), context.os(), context.requestId()));
         events.publishEvent(new ActivityRecorded(entry.getId(), action));

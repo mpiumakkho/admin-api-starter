@@ -69,7 +69,7 @@ public class TwoFactorService {
 
     /** Your own, with a current code; two_factor_mandatory while your role requires it */
     public UserResponse disable(Actor actor, String code) {
-        if (settings.requiresTwoFactor(actor.roleId())) {
+        if (actor.roleIds().stream().anyMatch(settings::requiresTwoFactor)) {
             throw TWO_FACTOR_MANDATORY.exception();
         }
         var credential = load(actor.userId());

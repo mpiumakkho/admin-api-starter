@@ -25,7 +25,6 @@ public class User {
     private String department;
     /** Image URL or data URL; empty shows initials */
     private String avatar;
-    private UUID roleId;
 
     @Enumerated(EnumType.STRING)
     private UserStatus status;
@@ -37,32 +36,27 @@ public class User {
 
     protected User() {}
 
+    /** Their roles are role assignments of their own (P-019) */
     public User(String firstName, String lastName, String email, String phone, String department, String avatar,
-            UUID roleId, UserStatus status, Instant now) {
-        update(firstName, lastName, email, phone, department, avatar, roleId, status, now);
+            UserStatus status, Instant now) {
+        update(firstName, lastName, email, phone, department, avatar, status, now);
         this.createdAt = now;
     }
 
     public final void update(String firstName, String lastName, String email, String phone, String department,
-            String avatar, UUID roleId, UserStatus status, Instant now) {
+            String avatar, UserStatus status, Instant now) {
         this.firstName = firstName;
         this.lastName = lastName;
         this.email = email;
         this.phone = phone;
         this.department = department;
         this.avatar = avatar;
-        this.roleId = roleId;
         this.status = status;
         this.updatedAt = now;
     }
 
     public void changeStatus(UserStatus status, Instant now) {
         this.status = status;
-        this.updatedAt = now;
-    }
-
-    public void changeRole(UUID roleId, Instant now) {
-        this.roleId = roleId;
         this.updatedAt = now;
     }
 
@@ -101,10 +95,6 @@ public class User {
 
     public String getAvatar() {
         return avatar;
-    }
-
-    public UUID getRoleId() {
-        return roleId;
     }
 
     public UserStatus getStatus() {

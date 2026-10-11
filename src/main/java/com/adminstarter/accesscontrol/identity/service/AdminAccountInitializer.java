@@ -3,8 +3,10 @@ package com.adminstarter.accesscontrol.identity.service;
 import com.adminstarter.accesscontrol.AccessControlProperties;
 import com.adminstarter.accesscontrol.authorization.CoreRoles;
 import com.adminstarter.accesscontrol.authorization.service.RoleService;
+import com.adminstarter.accesscontrol.identity.entity.RoleAssignment;
 import com.adminstarter.accesscontrol.identity.entity.User;
 import com.adminstarter.accesscontrol.identity.entity.UserStatus;
+import com.adminstarter.accesscontrol.identity.repository.RoleAssignmentRepository;
 import com.adminstarter.accesscontrol.identity.repository.UserRepository;
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -29,14 +31,16 @@ public class AdminAccountInitializer implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(AdminAccountInitializer.class);
 
     private final UserRepository users;
+    private final RoleAssignmentRepository assignments;
     private final CredentialServiceImpl credentials;
     private final RoleService roles;
     private final AccessControlProperties properties;
     private final Clock clock;
 
-    public AdminAccountInitializer(UserRepository users, CredentialServiceImpl credentials, RoleService roles,
-            AccessControlProperties properties, Clock clock) {
+    public AdminAccountInitializer(UserRepository users, RoleAssignmentRepository assignments,
+            CredentialServiceImpl credentials, RoleService roles, AccessControlProperties properties, Clock clock) {
         this.users = users;
+        this.assignments = assignments;
         this.credentials = credentials;
         this.roles = roles;
         this.properties = properties;
@@ -54,8 +58,10 @@ public class AdminAccountInitializer implements ApplicationRunner {
         var email = properties.bootstrap().adminEmail();
         var configured = properties.bootstrap().adminPassword();
         var password = configured == null || configured.isBlank() ? randomPassword() : configured;
-        var admin = users.save(new User("Admin", "", email, "", "Operations", "", role, UserStatus.ACTIVE,
-                clock.instant().truncatedTo(ChronoUnit.MILLIS)));
+        var now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
+        var admin = users.save(new User("Admin", "", email, "", "Operations", "", UserStatus.ACTIVE, now));
+        // For good: someone must always be able to run the system (P-019)
+        assignments.save(new RoleAssignment(admin.getId(), role, now, null, "", null, now));
         credentials.create(admin.getId(), password);
         if (password.equals(configured)) {
             log.info("Created the first administrator, {}", email);

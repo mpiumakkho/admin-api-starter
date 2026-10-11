@@ -27,10 +27,18 @@ public enum ErrorCode {
     SYSTEM_ROLE(HttpStatus.CONFLICT),
     NOT_INVITED(HttpStatus.CONFLICT),
     DEFAULT_ROLE(HttpStatus.CONFLICT),
+    /** The person already holds the role, now or later, at the same time (P-019) */
+    ALREADY_ASSIGNED(HttpStatus.CONFLICT),
+    /** Nobody active would keep a role with every permission for good (P-019) */
+    LAST_ADMINISTRATOR(HttpStatus.CONFLICT),
     EMAIL_DOMAIN(HttpStatus.UNPROCESSABLE_CONTENT),
     WEAK_PASSWORD(HttpStatus.UNPROCESSABLE_CONTENT),
     /** One of the user's most recent passwords (the settings' passwordHistory, P-017) */
     PASSWORD_REUSED(HttpStatus.UNPROCESSABLE_CONTENT),
+    /** Longer than the role's assignment rules allow, or for good when it must end (P-019) */
+    ASSIGNMENT_TOO_LONG(HttpStatus.UNPROCESSABLE_CONTENT),
+    /** The role asks for a reason, and none was given (P-019) */
+    REASON_REQUIRED(HttpStatus.UNPROCESSABLE_CONTENT),
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS);
 
     private final HttpStatus status;
