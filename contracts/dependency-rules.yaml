@@ -5,7 +5,7 @@ schema_version: 1
 backend:
   root_foundation: "com.adminstarter.accesscontrol"
   root_application: "com.adminstarter.app"
-  modules: [identity, authentication, authorization, audit, notification, settings, liveupdate]
+  modules: [identity, authentication, authorization, audit, notification, settings, branch, liveupdate]
   public_surface_layers: [service, dto, event, spi]
   private_layers: [repository, entity, controller, policy]
   rules:

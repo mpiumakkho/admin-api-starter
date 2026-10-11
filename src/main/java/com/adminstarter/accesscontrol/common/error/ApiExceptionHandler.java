@@ -38,7 +38,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Map<String, ErrorCode> CONSTRAINTS = Map.of(
             "ux_users_email", ErrorCode.EMAIL_TAKEN,
             "ck_role_assignments_period", ErrorCode.INVALID_REQUEST,
-            "fk_admin_settings_default_role", ErrorCode.DEFAULT_ROLE);
+            "fk_admin_settings_default_role", ErrorCode.DEFAULT_ROLE,
+            "ux_branches_code", ErrorCode.CODE_TAKEN,
+            "fk_users_branch", ErrorCode.BRANCH_IN_USE);
 
     public static ProblemDetail problem(ErrorCode code) {
         var problem = ProblemDetail.forStatus(code.status());

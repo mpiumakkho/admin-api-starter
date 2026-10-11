@@ -33,6 +33,8 @@ backend:
       layers: [service]              # emails only: no controller, repository, entity or dto by design
     settings:                        # P-007
       layers: [controller, service, repository, entity, dto, event]
+    branch:                          # P-020: spi/BranchMemberProvider, implemented by identity
+      layers: [controller, service, repository, entity, dto, event, spi]
     liveupdate:                      # P-007: the event stream, kept in memory
       layers: [controller, service]
 

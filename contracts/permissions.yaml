@@ -16,13 +16,16 @@ permissions:
   - { code: "activity.export", description: "Export activity" }
   - { code: "settings.view",   description: "View settings" }
   - { code: "settings.manage", description: "Change settings" }
+  - { code: "branches.view",   description: "View branches" }
+  - { code: "branches.manage", description: "Add and change branches" }
 
 # Created on the first start. Built-in ones (is_system) take this name, description and these permissions again on
 # every start (P-019); the others belong to whoever manages roles once created.
 roles:
   - { code: ADMINISTRATOR, name: Administrator, is_system: true,  permissions: "*", source: CoreRoles }
   - { code: MANAGER,       name: Manager,       is_system: true,  source: AppRoles,
-      permissions: ["users.view", "users.create", "users.edit", "roles.view", "activity.view", "activity.export", "settings.view"] }
+      permissions: ["users.view", "users.create", "users.edit", "roles.view", "activity.view", "activity.export", "settings.view",
+                    "branches.view"] }
   - { code: SUPPORT,       name: Support,       is_system: false, source: AppRoles,
       permissions: ["users.view", "users.edit", "roles.view", "activity.view"] }
   - { code: VIEWER,        name: Viewer,        is_system: false, source: AppRoles, default_for_new_users: true,
@@ -64,6 +67,10 @@ endpoints:
   - { method: POST,   path: "/api/roles",                         permission: roles.manage }
   - { method: PATCH,  path: "/api/roles/{id}",                    permission: roles.manage }
   - { method: DELETE, path: "/api/roles/{id}",                    permission: roles.manage }
+  - { method: GET,    path: "/api/branches",                      permission: authenticated, note: "P-020" }
+  - { method: POST,   path: "/api/branches",                      permission: branches.manage }
+  - { method: PATCH,  path: "/api/branches/{id}",                 permission: branches.manage }
+  - { method: DELETE, path: "/api/branches/{id}",                 permission: branches.manage, note: "branch_in_use while anyone is in it" }
   - { method: GET,    path: "/api/activity",                      permission: authenticated, note: "empty without activity.view; optional from, to (ISO 8601)" }
   - { method: GET,    path: "/api/settings",                      permission: authenticated, two_factor_setup: true }
   - { method: PATCH,  path: "/api/settings",                      permission: settings.manage }

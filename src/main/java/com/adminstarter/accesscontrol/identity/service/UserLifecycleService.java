@@ -4,6 +4,7 @@ import static com.adminstarter.accesscontrol.common.constant.ErrorCode.EMAIL_TAK
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.NOT_INVITED;
 
 import com.adminstarter.accesscontrol.authorization.CorePermissions;
+import com.adminstarter.accesscontrol.branch.service.BranchService;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.common.dto.FieldChange;
 import com.adminstarter.accesscontrol.identity.dto.CreateUserRequest;
@@ -35,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -51,19 +53,22 @@ public class UserLifecycleService {
     private final UserAccessService access;
     private final RoleAssignmentService assignments;
     private final RoleAssignmentResolver resolver;
+    private final BranchService branches;
     private final UserMapper mapper;
     private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public UserLifecycleService(UserRepository users, UserCredentialRepository credentials,
             CredentialServiceImpl credentialService, UserAccessService access, RoleAssignmentService assignments,
-            RoleAssignmentResolver resolver, UserMapper mapper, ApplicationEventPublisher events, Clock clock) {
+            RoleAssignmentResolver resolver, BranchService branches, UserMapper mapper, ApplicationEventPublisher events,
+            Clock clock) {
         this.users = users;
         this.credentials = credentials;
         this.credentialService = credentialService;
         this.access = access;
         this.assignments = assignments;
         this.resolver = resolver;
+        this.branches = branches;
         this.mapper = mapper;
         this.events = events;
         this.clock = clock;
@@ -115,12 +120,17 @@ public class UserLifecycleService {
                 access.requireEmailDomain(after.email());
             }
         }
+        // Nobody new joins a closed branch; someone already in it stays
+        if (after.branchId() != null && !after.branchId().equals(before.branchId())) {
+            branches.requireOpen(after.branchId());
+        }
         var statusChanged = after.status() != before.status();
         SelfProtectionPolicy.forbidOwnStatus(actor, id, statusChanged);
         // A status change may take away the last person who can run the system
         assignments.keepingAdministrator(() -> {
             user.update(after.firstName(), after.lastName(), after.email(), after.phone(), after.department(),
                     after.avatar(), after.status(), now());
+            user.moveToBranch(after.branchId(), now());
             users.flush();
             return user;
         });
@@ -201,6 +211,9 @@ public class UserLifecycleService {
     }
 
     private void requireCanCreate(Actor actor, CreateUserRequest draft) {
+        if (draft.branchId() != null) {
+            branches.requireOpen(draft.branchId());
+        }
         assignments.requireCanGive(actor, draft.roles());
         access.requireEmailFree(draft.email().trim(), null);
         access.requireEmailDomain(draft.email());
@@ -209,15 +222,21 @@ public class UserLifecycleService {
     /** The user, then their first roles, each with its own entry in the log */
     private User add(Actor actor, CreateUserRequest draft) {
         var status = UserStatus.of(draft.status());
-        var user = users.save(new User(draft.firstName(), draft.lastName(), draft.email().trim(),
+        var draftUser = new User(draft.firstName(), draft.lastName(), draft.email().trim(),
                 Objects.requireNonNullElse(draft.phone(), ""), draft.department(),
-                Objects.requireNonNullElse(draft.avatar(), ""), status, now()));
+                Objects.requireNonNullElse(draft.avatar(), ""), status, now());
+        draftUser.moveToBranch(draft.branchId(), now());
+        var user = users.save(draftUser);
         credentialService.create(user.getId(), null);
+        var changes = new ArrayList<FieldChange>();
+        changes.add(FieldChange.set("department", user.getDepartment()));
+        if (user.getBranchId() != null) {
+            changes.add(FieldChange.set("branchId", user.getBranchId().toString()));
+        }
+        changes.add(FieldChange.set("email", user.getEmail()));
+        changes.add(FieldChange.set("status", status.value()));
         events.publishEvent(new UserCreated(actor.userId(), user.getId(), user.getFullName(), user.getEmail(),
-                user.getFirstName(), status == UserStatus.INVITED, List.of(
-                        FieldChange.set("department", user.getDepartment()),
-                        FieldChange.set("email", user.getEmail()),
-                        FieldChange.set("status", status.value()))));
+                user.getFirstName(), status == UserStatus.INVITED, List.copyOf(changes)));
         assignments.giveFirstRoles(actor, user, draft.roles());
         return user;
     }
@@ -232,11 +251,11 @@ public class UserLifecycleService {
 
     /** The fields a request may set, before or after a change, in the order the activity log lists them */
     private record Profile(String firstName, String lastName, String email, String phone, String department,
-            UserStatus status, String avatar) {
+            @Nullable UUID branchId, UserStatus status, String avatar) {
 
         static Profile of(User user) {
             return new Profile(user.getFirstName(), user.getLastName(), user.getEmail(), user.getPhone(), user.getDepartment(),
-                    user.getStatus(), user.getAvatar());
+                    user.getBranchId(), user.getStatus(), user.getAvatar());
         }
 
         Profile with(UpdateUserRequest request) {
@@ -246,17 +265,20 @@ public class UserLifecycleService {
                     request.email() == null ? email : request.email().trim(),
                     Objects.requireNonNullElse(request.phone(), phone),
                     Objects.requireNonNullElse(request.department(), department),
+                    request.branchId() == null ? branchId : request.branchId().orElse(null),
                     request.status() == null ? status : UserStatus.of(request.status()),
                     Objects.requireNonNullElse(request.avatar(), avatar));
         }
 
-        Map<String, String> values() {
-            var values = new LinkedHashMap<String, String>();
+        /** Each field as text, null for no branch */
+        Map<String, @Nullable String> values() {
+            var values = new LinkedHashMap<String, @Nullable String>();
             values.put("firstName", firstName);
             values.put("lastName", lastName);
             values.put("email", email);
             values.put("phone", phone);
             values.put("department", department);
+            values.put("branchId", branchId == null ? null : branchId.toString());
             values.put("status", status.value());
             values.put("avatar", avatar);
             return values;
@@ -265,7 +287,7 @@ public class UserLifecycleService {
         List<String> changedFields(Profile after) {
             var mine = values();
             var theirs = after.values();
-            return mine.keySet().stream().filter(field -> !mine.get(field).equals(theirs.get(field))).toList();
+            return mine.keySet().stream().filter(field -> !Objects.equals(mine.get(field), theirs.get(field))).toList();
         }
 
         List<FieldChange> diff(Profile after) {

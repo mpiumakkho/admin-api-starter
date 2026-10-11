@@ -2,6 +2,7 @@ package com.adminstarter.app.config;
 
 import static com.adminstarter.accesscontrol.authorization.CorePermissions.ACTIVITY_EXPORT;
 import static com.adminstarter.accesscontrol.authorization.CorePermissions.ACTIVITY_VIEW;
+import static com.adminstarter.accesscontrol.authorization.CorePermissions.BRANCHES_VIEW;
 import static com.adminstarter.accesscontrol.authorization.CorePermissions.ROLES_VIEW;
 import static com.adminstarter.accesscontrol.authorization.CorePermissions.SETTINGS_VIEW;
 import static com.adminstarter.accesscontrol.authorization.CorePermissions.USERS_CREATE;
@@ -27,7 +28,7 @@ public class AppRoles implements RoleTemplate {
         return List.of(
                 new RoleDefinition("MANAGER", "Manager", "Manages people in their teams and reads the activity log",
                         "info", true, Set.of(USERS_VIEW, USERS_CREATE, USERS_EDIT, ROLES_VIEW, ACTIVITY_VIEW,
-                                ACTIVITY_EXPORT, SETTINGS_VIEW)),
+                                ACTIVITY_EXPORT, SETTINGS_VIEW, BRANCHES_VIEW)),
                 new RoleDefinition("SUPPORT", "Support", "Helps users with their accounts", "success", false,
                         Set.of(USERS_VIEW, USERS_EDIT, ROLES_VIEW, ACTIVITY_VIEW)),
                 new RoleDefinition("VIEWER", "Viewer", "Read-only access to the user list", "neutral", false,

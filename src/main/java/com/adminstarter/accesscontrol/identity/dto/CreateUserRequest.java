@@ -6,11 +6,12 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
+import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * UserDraft: everything the server does not assign. Phone and photo may be left out; without roles, the new user gets
- * the settings' default role for good.
+ * UserDraft: everything the server does not assign. Phone, photo and branch may be left out; without roles, the new user
+ * gets the settings' default role for good.
  */
 public record CreateUserRequest(
         @NotBlank @Size(max = 100) String firstName,
@@ -18,6 +19,7 @@ public record CreateUserRequest(
         @NotNull @Size(max = 254) @Pattern(regexp = EMAIL) String email,
         @Nullable @Size(max = 50) String phone,
         @NotBlank @Size(max = 100) String department,
+        @Nullable UUID branchId,
         @Nullable @Size(max = 50) List<@NotNull @Valid RoleGrantRequest> roles,
         @NotNull @Pattern(regexp = STATUSES) String status,
         @Nullable @Size(max = AVATAR_MAX) String avatar) {

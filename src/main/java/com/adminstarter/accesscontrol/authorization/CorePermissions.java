@@ -22,6 +22,8 @@ public class CorePermissions implements PermissionCatalog {
     public static final String ACTIVITY_EXPORT = "activity.export";
     public static final String SETTINGS_VIEW = "settings.view";
     public static final String SETTINGS_MANAGE = "settings.manage";
+    public static final String BRANCHES_VIEW = "branches.view";
+    public static final String BRANCHES_MANAGE = "branches.manage";
 
     @Override
     public List<PermissionDefinition> permissions() {
@@ -35,6 +37,8 @@ public class CorePermissions implements PermissionCatalog {
                 PermissionDefinition.of(ACTIVITY_VIEW, "View activity"),
                 PermissionDefinition.of(ACTIVITY_EXPORT, "Export activity"),
                 PermissionDefinition.of(SETTINGS_VIEW, "View settings"),
-                PermissionDefinition.of(SETTINGS_MANAGE, "Change settings"));
+                PermissionDefinition.of(SETTINGS_MANAGE, "Change settings"),
+                PermissionDefinition.of(BRANCHES_VIEW, "View branches"),
+                PermissionDefinition.of(BRANCHES_MANAGE, "Add and change branches"));
     }
 }

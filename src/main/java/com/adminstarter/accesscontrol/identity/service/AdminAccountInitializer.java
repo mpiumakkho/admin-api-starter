@@ -61,7 +61,7 @@ public class AdminAccountInitializer implements ApplicationRunner {
         var now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         var admin = users.save(new User("Admin", "", email, "", "Operations", "", UserStatus.ACTIVE, now));
         // For good: someone must always be able to run the system (P-019)
-        assignments.save(new RoleAssignment(admin.getId(), role, now, null, "", null, now));
+        assignments.save(new RoleAssignment(admin.getId(), role, null, now, null, "", null, now));
         credentials.create(admin.getId(), password);
         if (password.equals(configured)) {
             log.info("Created the first administrator, {}", email);
