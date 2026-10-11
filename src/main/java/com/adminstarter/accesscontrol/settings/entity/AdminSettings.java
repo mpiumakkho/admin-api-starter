@@ -15,6 +15,8 @@ import org.hibernate.type.SqlTypes;
 public class AdminSettings {
 
     public static final short ID = 1;
+    /** What a new installation asks a reason for: suspending or reactivating someone, and deleting people */
+    public static final List<String> DEFAULT_REASONS_REQUIRED = List.of("status", "delete");
 
     @Id
     private short id;
@@ -40,6 +42,10 @@ public class AdminSettings {
     private int activityRetentionDays;
     /** People belong to branches, and roles can be given for one (P-020); off on a new installation */
     private boolean branchesEnabled;
+
+    /** The changes that must have a reason (P-021), such as "status" and "delete"; without duplicates */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    private List<String> reasonsRequired = DEFAULT_REASONS_REQUIRED;
 
     private Instant updatedAt;
 
@@ -69,6 +75,11 @@ public class AdminSettings {
         this.passwordMinLength = passwordMinLength;
         this.passwordHistory = passwordHistory;
         this.activityRetentionDays = activityRetentionDays;
+        this.updatedAt = now;
+    }
+
+    public void changeReasonsRequired(List<String> reasonsRequired, Instant now) {
+        this.reasonsRequired = List.copyOf(reasonsRequired);
         this.updatedAt = now;
     }
 
@@ -121,5 +132,9 @@ public class AdminSettings {
 
     public boolean isBranchesEnabled() {
         return branchesEnabled;
+    }
+
+    public List<String> getReasonsRequired() {
+        return List.copyOf(reasonsRequired);
     }
 }

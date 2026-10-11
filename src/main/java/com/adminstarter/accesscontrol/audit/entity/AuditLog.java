@@ -35,6 +35,9 @@ public class AuditLog {
     @ColumnTransformer(write = "?::jsonb")
     private @Nullable String changes;
 
+    /** Why, as the person who made the change gave it (P-021) */
+    private @Nullable String reason;
+
     private String ip;
     private String browser;
     private String os;
@@ -43,13 +46,14 @@ public class AuditLog {
     protected AuditLog() {}
 
     public AuditLog(Instant occurredAt, @Nullable UUID actorId, String action, String targetLabel, @Nullable String targetId,
-            @Nullable String changes, String ip, String browser, String os, String requestId) {
+            @Nullable String changes, @Nullable String reason, String ip, String browser, String os, String requestId) {
         this.occurredAt = occurredAt;
         this.actorId = actorId;
         this.action = action;
         this.targetLabel = targetLabel;
         this.targetId = targetId;
         this.changes = changes;
+        this.reason = reason;
         this.ip = ip;
         this.browser = browser;
         this.os = os;
@@ -78,6 +82,10 @@ public class AuditLog {
 
     public @Nullable String getTargetId() {
         return targetId;
+    }
+
+    public @Nullable String getReason() {
+        return reason;
     }
 
     public @Nullable String getChanges() {

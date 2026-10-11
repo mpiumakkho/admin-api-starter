@@ -68,7 +68,7 @@ public class UserServiceImpl implements UserService {
         if (user.getStatus() == UserStatus.INVITED) {
             user.changeStatus(UserStatus.ACTIVE, clock.instant());
             events.publishEvent(new UserStatusChanged(userId, userId, user.getFullName(), UserStatus.INVITED.value(),
-                    UserStatus.ACTIVE.value()));
+                    UserStatus.ACTIVE.value(), ""));
         }
     }
 

@@ -2,6 +2,7 @@ package com.adminstarter.accesscontrol.identity.controller;
 
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.identity.dto.CreateRoleAssignmentRequest;
+import com.adminstarter.accesscontrol.identity.dto.ReasonRequest;
 import com.adminstarter.accesscontrol.identity.dto.RoleAssignmentBatchRequest;
 import com.adminstarter.accesscontrol.identity.dto.UpdateRoleAssignmentRequest;
 import com.adminstarter.accesscontrol.identity.dto.UserResponse;
@@ -9,6 +10,7 @@ import com.adminstarter.accesscontrol.identity.service.RoleAssignmentService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -45,8 +47,9 @@ public class RoleAssignmentController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('users.edit')")
-    public UserResponse remove(@AuthenticationPrincipal Actor actor, @PathVariable UUID id) {
-        return assignments.remove(actor, id);
+    public UserResponse remove(@AuthenticationPrincipal Actor actor, @PathVariable UUID id,
+            @Valid @RequestBody(required = false) @Nullable ReasonRequest request) {
+        return assignments.remove(actor, id, ReasonRequest.of(request));
     }
 
     @PostMapping("/batch")

@@ -75,18 +75,19 @@ public class AuditListener {
     @EventListener
     void on(UserStatusChanged event) {
         var action = "suspended".equals(event.to()) ? "user.suspended" : "user.activated";
-        record(event.actorId(), action, event.fullName(), event.userId(), List.of(FieldChange.of("status", event.from(), event.to())));
+        record(event.actorId(), action, event.fullName(), event.userId(), List.of(FieldChange.of("status", event.from(), event.to())),
+                event.reason());
     }
 
     /** No target id: the user is gone, so there is nothing to link to */
     @EventListener
     void on(UserDeleted event) {
-        record(event.actorId(), "user.deleted", event.fullName(), null, event.changes());
+        record(event.actorId(), "user.deleted", event.fullName(), null, event.changes(), event.reason());
     }
 
     @EventListener
     void on(RoleAssignmentAdded event) {
-        record(event.actorId(), "role_assignment.added", event.fullName(), event.userId(), event.changes());
+        record(event.actorId(), "role_assignment.added", event.fullName(), event.userId(), event.changes(), event.reason());
     }
 
     @EventListener
@@ -96,19 +97,19 @@ public class AuditListener {
 
     @EventListener
     void on(RoleAssignmentRemoved event) {
-        record(event.actorId(), "role_assignment.removed", event.fullName(), event.userId(), event.changes());
+        record(event.actorId(), "role_assignment.removed", event.fullName(), event.userId(), event.changes(), event.reason());
     }
 
     /** Nobody did it: no actor, and the moment the role ended rather than when the job noticed */
     @EventListener
     void on(RoleAssignmentExpired event) {
         record(null, "role_assignment.expired", event.fullName(), event.userId(),
-                List.of(FieldChange.was("roleId", event.roleId().toString())), event.endedAt());
+                List.of(FieldChange.was("roleId", event.roleId().toString())), "", event.endedAt());
     }
 
     @EventListener
     void on(UserPasswordReset event) {
-        record(event.actorId(), "user.password_reset", event.fullName(), event.userId(), List.of());
+        record(event.actorId(), "user.password_reset", event.fullName(), event.userId(), List.of(), event.reason());
     }
 
     @EventListener
@@ -119,7 +120,7 @@ public class AuditListener {
     @EventListener
     void on(TwoFactorChanged event) {
         record(event.actorId(), event.enabled() ? "auth.two_factor_on" : "auth.two_factor_off", event.fullName(),
-                event.userId(), List.of());
+                event.userId(), List.of(), event.reason());
     }
 
     @EventListener
@@ -130,7 +131,7 @@ public class AuditListener {
     @EventListener
     void on(SessionsEnded event) {
         record(event.actorId(), "auth.sessions_ended", event.fullName(), event.userId(),
-                List.of(FieldChange.list("devices", List.of(), event.devices())));
+                List.of(FieldChange.list("devices", List.of(), event.devices())), event.reason());
     }
 
     @EventListener
@@ -169,15 +170,21 @@ public class AuditListener {
     }
 
     private void record(UUID actorId, String action, String targetLabel, @Nullable UUID targetId, List<FieldChange> changes) {
-        record(actorId, action, targetLabel, targetId, changes, clock.instant());
+        record(actorId, action, targetLabel, targetId, changes, "");
+    }
+
+    /** With the reason the request gave; blank is none */
+    private void record(UUID actorId, String action, String targetLabel, @Nullable UUID targetId, List<FieldChange> changes,
+            String reason) {
+        record(actorId, action, targetLabel, targetId, changes, reason, clock.instant());
     }
 
     private void record(@Nullable UUID actorId, String action, String targetLabel, @Nullable UUID targetId,
-            List<FieldChange> changes, Instant at) {
+            List<FieldChange> changes, String reason, Instant at) {
         var context = RequestContext.currentOrNone();
         var entry = logs.save(new AuditLog(at.truncatedTo(ChronoUnit.MILLIS), actorId, action, targetLabel,
                 targetId == null ? null : targetId.toString(), changes.isEmpty() ? null : json.writeValueAsString(changes),
-                context.ip(), context.browser(), context.os(), context.requestId()));
+                reason.isBlank() ? null : reason, context.ip(), context.browser(), context.os(), context.requestId()));
         events.publishEvent(new ActivityRecorded(entry.getId(), action));
     }
 }

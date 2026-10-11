@@ -1,6 +1,7 @@
 package com.adminstarter.accesscontrol.settings.service;
 
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.NOT_FOUND;
+import static com.adminstarter.accesscontrol.common.constant.ErrorCode.REASON_REQUIRED;
 
 import com.adminstarter.accesscontrol.authorization.service.RoleService;
 import com.adminstarter.accesscontrol.common.context.Actor;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
@@ -63,6 +65,16 @@ public class SettingsServiceImpl implements SettingsService {
         return new PasswordPolicyResponse(current.getPasswordMinLength(), current.getPasswordHistory());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public String requireReason(String action, @Nullable String reason) {
+        var text = reason == null ? "" : reason.trim();
+        if (text.isEmpty() && load().getReasonsRequired().contains(action)) {
+            throw REASON_REQUIRED.exception();
+        }
+        return text;
+    }
+
     @CacheEvict(cacheNames = TWO_FACTOR_ROLES_CACHE, allEntries = true)
     public SettingsResponse update(Actor actor, UpdateSettingsRequest request) {
         var current = load();
@@ -84,6 +96,8 @@ public class SettingsServiceImpl implements SettingsService {
         var activityRetentionDays =
                 Objects.requireNonNullElse(request.activityRetentionDays(), current.getActivityRetentionDays());
         var branchesEnabled = Objects.requireNonNullElse(request.branchesEnabled(), current.isBranchesEnabled());
+        var reasonsRequired = request.reasonsRequired() == null ? current.getReasonsRequired()
+                : request.reasonsRequired().stream().distinct().toList();
 
         // In the order of AdminSettings in models.ts, the two lists last, as items added and removed
         var changes = new ArrayList<FieldChange>();
@@ -99,11 +113,13 @@ public class SettingsServiceImpl implements SettingsService {
         FieldChange.listDiff("allowedDomains", current.getAllowedDomains(), domains).ifPresent(changes::add);
         FieldChange.listDiff("twoFactorRoleIds", strings(current.getTwoFactorRoleIds()), strings(twoFactorRoleIds))
                 .ifPresent(changes::add);
+        FieldChange.listDiff("reasonsRequired", current.getReasonsRequired(), reasonsRequired).ifPresent(changes::add);
 
         var now = clock.instant();
         current.update(defaultRoleId, domains, inviteExpiryDays, sessionTimeoutMinutes, now);
         current.updateAccountRules(twoFactorRoleIds, passwordMinLength, passwordHistory, activityRetentionDays, now);
         current.changeBranchesEnabled(branchesEnabled, now);
+        current.changeReasonsRequired(reasonsRequired, now);
         if (!changes.isEmpty()) {
             events.publishEvent(new SettingsUpdated(actor.userId(), List.copyOf(changes)));
         }
@@ -144,6 +160,7 @@ public class SettingsServiceImpl implements SettingsService {
     private static SettingsResponse toResponse(AdminSettings settings) {
         return new SettingsResponse(settings.getDefaultRoleId(), settings.getAllowedDomains(), settings.getInviteExpiryDays(),
                 settings.getSessionTimeoutMinutes(), settings.getTwoFactorRoleIds(), settings.getPasswordMinLength(),
-                settings.getPasswordHistory(), settings.getActivityRetentionDays(), settings.isBranchesEnabled());
+                settings.getPasswordHistory(), settings.getActivityRetentionDays(), settings.isBranchesEnabled(),
+                settings.getReasonsRequired());
     }
 }

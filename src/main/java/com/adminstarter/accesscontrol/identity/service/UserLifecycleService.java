@@ -25,6 +25,7 @@ import com.adminstarter.accesscontrol.identity.event.UserUpdated;
 import com.adminstarter.accesscontrol.identity.policy.SelfProtectionPolicy;
 import com.adminstarter.accesscontrol.identity.repository.UserCredentialRepository;
 import com.adminstarter.accesscontrol.identity.repository.UserRepository;
+import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -52,14 +53,15 @@ public class UserLifecycleService {
     private final RoleAssignmentService assignments;
     private final RoleAssignmentResolver resolver;
     private final BranchService branches;
+    private final SettingsService settings;
     private final UserMapper mapper;
     private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public UserLifecycleService(UserRepository users, UserCredentialRepository credentials,
             CredentialServiceImpl credentialService, UserAccessService access, RoleAssignmentService assignments,
-            RoleAssignmentResolver resolver, BranchService branches, UserMapper mapper, ApplicationEventPublisher events,
-            Clock clock) {
+            RoleAssignmentResolver resolver, BranchService branches, SettingsService settings, UserMapper mapper,
+            ApplicationEventPublisher events, Clock clock) {
         this.users = users;
         this.credentials = credentials;
         this.credentialService = credentialService;
@@ -67,6 +69,7 @@ public class UserLifecycleService {
         this.assignments = assignments;
         this.resolver = resolver;
         this.branches = branches;
+        this.settings = settings;
         this.mapper = mapper;
         this.events = events;
         this.clock = clock;
@@ -145,6 +148,7 @@ public class UserLifecycleService {
         SelfProtectionPolicy.forbidSelf(actor, request.ids());
         var status = UserStatus.of(request.status());
         var targets = request.ids().stream().distinct().map(id -> access.findManageable(actor, id)).toList();
+        var reason = settings.requireReason("status", request.reason());
         var changed = new ArrayList<User>();
         // Suspending may take away the last person who can run the system
         assignments.keepingAdministrator(() -> {
@@ -155,7 +159,7 @@ public class UserLifecycleService {
                 var from = user.getStatus();
                 user.changeStatus(status, clock.instant());
                 events.publishEvent(new UserStatusChanged(actor.userId(), user.getId(), user.getFullName(), from.value(),
-                        status.value()));
+                        status.value(), reason));
                 if (status == UserStatus.SUSPENDED) {
                     events.publishEvent(new UserSuspended(user.getId()));
                 }
@@ -172,13 +176,14 @@ public class UserLifecycleService {
     public void delete(Actor actor, DeleteUsersRequest request) {
         SelfProtectionPolicy.forbidSelf(actor, request.ids());
         var targets = request.ids().stream().distinct().map(id -> access.findManageable(actor, id)).toList();
+        var reason = settings.requireReason("delete", request.reason());
         var now = clock.instant();
         for (var user : targets) {
             var roles = resolver.of(user.getId()).stream().filter(item -> item.activeAt(now))
                     .map(item -> item.getRoleId().toString()).distinct().toList();
             events.publishEvent(new UserDeleted(actor.userId(), user.getId(), user.getFullName(), List.of(
                     FieldChange.was("email", user.getEmail()),
-                    FieldChange.list("roles", List.of(), roles))));
+                    FieldChange.list("roles", List.of(), roles)), reason));
         }
         // Their role assignments go with them (on delete cascade); that may leave nobody who can run the system
         assignments.keepingAdministrator(() -> {
@@ -188,15 +193,19 @@ public class UserLifecycleService {
         });
     }
 
-    /** Emails a link to set a new password; for someone else, the old one stops working and their sessions end */
-    public void resetPassword(Actor actor, UUID id) {
+    /**
+     * Emails a link to set a new password; for someone else, the old one stops working and their sessions end, and it
+     * needs a reason when the settings say so (P-021)
+     */
+    public void resetPassword(Actor actor, UUID id, @Nullable String reason) {
         var user = access.findManageable(actor, id);
         var self = actor.is(id);
+        var why = self ? "" : settings.requireReason("resetSignIn", reason);
         if (!self) {
             credentialService.clearPassword(id);
         }
         events.publishEvent(new UserPasswordReset(actor.userId(), id, user.getFullName(), user.getEmail(),
-                user.getFirstName(), self));
+                user.getFirstName(), self, why));
     }
 
     public void resendInvite(Actor actor, UUID id) {

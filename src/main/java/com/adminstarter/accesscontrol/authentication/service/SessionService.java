@@ -10,6 +10,7 @@ import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.identity.dto.UserResponse;
 import com.adminstarter.accesscontrol.identity.service.UserService;
 import com.adminstarter.accesscontrol.security.SessionChecker;
+import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -32,12 +33,15 @@ public class SessionService implements SessionChecker {
 
     private final UserSessionRepository sessions;
     private final UserService users;
+    private final SettingsService settings;
     private final ApplicationEventPublisher events;
     private final Clock clock;
 
-    public SessionService(UserSessionRepository sessions, UserService users, ApplicationEventPublisher events, Clock clock) {
+    public SessionService(UserSessionRepository sessions, UserService users, SettingsService settings,
+            ApplicationEventPublisher events, Clock clock) {
         this.sessions = sessions;
         this.users = users;
+        this.settings = settings;
         this.events = events;
         this.clock = clock;
     }
@@ -65,20 +69,23 @@ public class SessionService implements SessionChecker {
                 .toList();
     }
 
-    public void end(Actor actor, UUID sessionId) {
+    /** Someone else's needs a reason when the settings say so (P-021); your own never does */
+    public void end(Actor actor, UUID sessionId, @Nullable String reason) {
         var now = clock.instant();
         var session = sessions.findById(sessionId).filter(candidate -> candidate.openAt(now)).orElseThrow(NOT_FOUND::exception);
         var user = users.requireSecurityManageable(actor, session.getUserId());
+        var why = actor.is(user.id()) ? "" : settings.requireReason("endSessions", reason);
         session.end(now);
-        events.publishEvent(new SessionsEnded(actor.userId(), user.id(), fullName(user), List.of(session.getDeviceLabel())));
+        events.publishEvent(new SessionsEnded(actor.userId(), user.id(), fullName(user), List.of(session.getDeviceLabel()), why));
     }
 
     /** Everywhere; for yourself, everywhere but the browser asking */
-    public void endAll(Actor actor, UUID userId) {
+    public void endAll(Actor actor, UUID userId, @Nullable String reason) {
         var user = users.requireSecurityManageable(actor, userId);
+        var why = actor.is(userId) ? "" : settings.requireReason("endSessions", reason);
         var ended = endOpen(userId, actor.sessionId());
         if (!ended.isEmpty()) {
-            events.publishEvent(new SessionsEnded(actor.userId(), userId, fullName(user), ended));
+            events.publishEvent(new SessionsEnded(actor.userId(), userId, fullName(user), ended, why));
         }
     }
 
