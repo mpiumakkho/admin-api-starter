@@ -175,9 +175,10 @@ class RoleAssignmentsIT extends ApiIntegrationTest {
         assertRefused(send(HttpMethod.PATCH, "/api/role-assignments/" + kept, helperNow,
                 Map.of("endsAt", Instant.now().plus(Duration.ofDays(2)).toString())), HttpStatus.CONFLICT, "last_administrator");
         assertRefused(send(HttpMethod.POST, "/api/users/status", helperNow,
-                Map.of("ids", List.of(admin.userId().toString()), "status", "suspended")), HttpStatus.CONFLICT, "last_administrator");
+                Map.of("ids", List.of(admin.userId().toString()), "status", "suspended", "reason", "Test")), HttpStatus.CONFLICT,
+                "last_administrator");
         assertRefused(send(HttpMethod.POST, "/api/users/delete", helperNow,
-                Map.of("ids", List.of(admin.userId().toString()))), HttpStatus.CONFLICT, "last_administrator");
+                Map.of("ids", List.of(admin.userId().toString()), "reason", "Test")), HttpStatus.CONFLICT, "last_administrator");
         // Nothing changed
         assertThat(rolesOf(admin, admin.userId().toString())).contains(administrator.toString());
     }

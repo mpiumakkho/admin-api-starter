@@ -14,6 +14,7 @@ import com.adminstarter.accesscontrol.identity.repository.UserCredentialReposito
 import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import java.util.List;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -85,16 +86,21 @@ public class TwoFactorService {
      * Someone else's, for a lost phone; your own goes through disable, with a code. Allowed even when their role
      * requires it: they then have to turn it on again before anything else.
      */
-    public UserResponse reset(Actor actor, UUID userId) {
+    public UserResponse reset(Actor actor, UUID userId, @Nullable String reason) {
         SelfProtectionPolicy.forbidSelf(actor, List.of(userId));
         access.findManageable(actor, userId);
+        var why = settings.requireReason("resetSignIn", reason);
         load(userId).turnOffTwoFactor();
-        return changed(actor, userId, false);
+        return changed(actor, userId, false, why);
     }
 
     private UserResponse changed(Actor actor, UUID userId, boolean enabled) {
+        return changed(actor, userId, enabled, "");
+    }
+
+    private UserResponse changed(Actor actor, UUID userId, boolean enabled, String reason) {
         var user = access.find(userId);
-        events.publishEvent(new TwoFactorChanged(actor.userId(), userId, user.getFullName(), enabled));
+        events.publishEvent(new TwoFactorChanged(actor.userId(), userId, user.getFullName(), enabled, reason));
         return mapper.toResponse(user, enabled);
     }
 

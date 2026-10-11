@@ -3,6 +3,7 @@ package com.adminstarter.accesscontrol.settings.dto;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.UUID;
@@ -18,4 +19,9 @@ public record UpdateSettingsRequest(
         @Nullable @Min(8) @Max(64) Integer passwordMinLength,
         @Nullable @Min(0) @Max(24) Integer passwordHistory,
         @Nullable @Min(30) @Max(3650) Integer activityRetentionDays,
-        @Nullable Boolean branchesEnabled) {}
+        @Nullable Boolean branchesEnabled,
+        @Nullable @Size(max = 10) List<@NotNull @Pattern(regexp = REASON_ACTIONS) String> reasonsRequired) {
+
+    /** The changes that can need a reason (ReasonAction in admin-ng-starter's models.ts, P-021) */
+    public static final String REASON_ACTIONS = "status|delete|removeRole|resetSignIn|endSessions";
+}

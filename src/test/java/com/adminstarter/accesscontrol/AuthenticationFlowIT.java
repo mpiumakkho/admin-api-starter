@@ -105,7 +105,7 @@ class AuthenticationFlowIT extends ApiIntegrationTest {
         var user = newUser("Viewer", "first-pass-123");
         var admin = admin();
         assertThat(send(HttpMethod.POST, "/api/users/status", admin,
-                Map.of("ids", List.of(user.userId().toString()), "status", "suspended"))).hasStatusOk();
+                Map.of("ids", List.of(user.userId().toString()), "status", "suspended", "reason", "Left the company"))).hasStatusOk();
         assertRefused(get("/api/me", user), HttpStatus.UNAUTHORIZED, "unauthenticated");
         assertRefused(refresh(user.cookie()), HttpStatus.UNAUTHORIZED, "unauthenticated");
         assertRefused(login(user.user().get("email").asString(), "first-pass-123", null), HttpStatus.FORBIDDEN, "account_suspended");

@@ -8,7 +8,7 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Activity in admin-ng-starter's models.ts; targetId and changes are left out when there are none, while actorId is
+ * Activity in admin-ng-starter's models.ts; targetId, changes and reason are left out when there are none, while actorId is
  * null, not left out, for what the server did by itself
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -22,4 +22,5 @@ public record ActivityResponse(
         String ip,
         String browser,
         String os,
-        @Nullable List<FieldChange> changes) {}
+        @Nullable List<FieldChange> changes,
+        @Nullable String reason) {}

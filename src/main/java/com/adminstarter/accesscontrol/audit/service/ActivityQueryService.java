@@ -47,6 +47,7 @@ public class ActivityQueryService {
     private ActivityResponse toResponse(AuditLog entry) {
         var changes = entry.getChanges() == null ? null : json.readValue(entry.getChanges(), CHANGES);
         return new ActivityResponse(entry.getId(), entry.getOccurredAt(), entry.getActorId(), entry.getAction(),
-                entry.getTargetLabel(), entry.getTargetId(), entry.getIp(), entry.getBrowser(), entry.getOs(), changes);
+                entry.getTargetLabel(), entry.getTargetId(), entry.getIp(), entry.getBrowser(), entry.getOs(), changes,
+                entry.getReason());
     }
 }

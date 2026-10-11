@@ -118,16 +118,17 @@ public class RoleAssignmentService {
     }
 
     @CacheEvict(cacheNames = UserServiceImpl.ACCOUNTS_CACHE, allEntries = true)
-    public UserResponse remove(Actor actor, UUID id) {
+    public UserResponse remove(Actor actor, UUID id, @Nullable String reason) {
         var assignment = assignments.findById(id).orElseThrow(NOT_FOUND::exception);
         var user = changeable(actor, assignment);
         roles.requireAssignable(actor, assignment.getRoleId());
+        var why = settings.requireReason("removeRole", reason);
         var hadAdministrators = resolver.administrators();
         assignments.delete(assignment);
         assignments.flush();
         requireAdministratorRemains(hadAdministrators);
         events.publishEvent(new RoleAssignmentRemoved(actor.userId(), user.getId(), user.getFullName(),
-                List.of(FieldChange.was("roleId", assignment.getRoleId().toString()))));
+                List.of(FieldChange.was("roleId", assignment.getRoleId().toString())), why));
         return mapper.toResponse(user);
     }
 
@@ -137,7 +138,8 @@ public class RoleAssignmentService {
      */
     @CacheEvict(cacheNames = UserServiceImpl.ACCOUNTS_CACHE, allEntries = true)
     public List<UserResponse> batch(Actor actor, RoleAssignmentBatchRequest request) {
-        if ((request.add() == null) == (request.removeRoleId() == null)) {
+        // A role given carries its own reason in the grant; the request's goes with taking one away
+        if ((request.add() == null) == (request.removeRoleId() == null) || (request.add() != null && request.reason() != null)) {
             throw INVALID_REQUEST.exception();
         }
         var ids = request.userIds().stream().distinct().toList();
@@ -160,6 +162,7 @@ public class RoleAssignmentService {
         } else {
             var roleId = request.removeRoleId();
             roles.requireAssignable(actor, roleId);
+            var why = settings.requireReason("removeRole", request.reason());
             var hadAdministrators = resolver.administrators();
             for (var user : users) {
                 var taken = resolver.of(user.getId()).stream()
@@ -168,7 +171,7 @@ public class RoleAssignmentService {
                 if (!taken.isEmpty()) {
                     assignments.deleteAll(taken);
                     events.publishEvent(new RoleAssignmentRemoved(actor.userId(), user.getId(), user.getFullName(),
-                            List.of(FieldChange.was("roleId", roleId.toString()))));
+                            List.of(FieldChange.was("roleId", roleId.toString())), why));
                     changed.add(user);
                 }
             }
@@ -226,10 +229,9 @@ public class RoleAssignmentService {
         if (assignment.getEndsAt() != null) {
             changes.add(FieldChange.set("endsAt", assignment.getEndsAt().toString()));
         }
-        if (!assignment.getReason().isEmpty()) {
-            changes.add(FieldChange.set("reason", assignment.getReason()));
-        }
-        events.publishEvent(new RoleAssignmentAdded(actor.userId(), user.getId(), user.getFullName(), List.copyOf(changes)));
+        // Its reason is the entry's (P-021)
+        events.publishEvent(new RoleAssignmentAdded(actor.userId(), user.getId(), user.getFullName(), List.copyOf(changes),
+                assignment.getReason()));
         return assignment;
     }
 

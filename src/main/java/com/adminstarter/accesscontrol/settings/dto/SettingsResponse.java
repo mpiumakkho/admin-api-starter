@@ -13,4 +13,5 @@ public record SettingsResponse(
         int passwordMinLength,
         int passwordHistory,
         int activityRetentionDays,
-        boolean branchesEnabled) {}
+        boolean branchesEnabled,
+        List<String> reasonsRequired) {}
