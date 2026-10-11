@@ -194,3 +194,15 @@
   - ลบ role แล้ว role นั้นหลุดจากกฎ กฎที่เหลือ role ไม่ถึงสองตัวถูกลบไปด้วยใน transaction เดียวกับการลบ role
   - activity `role_conflict.created`, `.updated`, `.deleted` (ชนิด roles) พร้อม `roles` เป็นรายการที่เพิ่มและเอาออก
 - Consequences: ยังไม่มีข้อยกเว้นแบบ mitigating control ของ SAP ถ้าต้องให้บางคนถือทั้งสองได้ ต้องแก้กฎ การมอบที่ทับกับ role ที่ "จะเริ่ม" ภายหลังก็ถูกกันด้วย เพราะนับทั้งที่ถืออยู่และที่นัดไว้
+
+## P-023 ยืนยันตัวตนซ้ำก่อนการเปลี่ยนแปลงที่เสี่ยง (step-up re-authentication) ด้วยเวลาที่ session ยืนยันล่าสุด
+
+- Context: browser ที่ลงชื่อเข้าใช้ค้างไว้ หรือ session ที่ถูกขโมย ทำได้ทุกอย่างที่เจ้าของทำได้ ระบบองค์กรจึงขอรหัสผ่านอีกครั้งก่อนการกระทำที่ยึดหรือปิดระบบได้ แบบ sudo mode ของ GitHub และ reauthentication ของ Microsoft Entra API.md เพิ่มหัวข้อ "Confirming who you are", `POST /me/reauthenticate`, `reauthMinutes` ในการตั้งค่า และ code `reauth_required`
+- Decision:
+  - `user_sessions.verified_at` (`V8__reauthentication.sql`) คือเวลาที่ session นั้นพิสูจน์ตัวตนล่าสุด: ตอน sign-in และตอน `POST /api/me/reauthenticate` สำเร็จ การ refresh ไม่นับ แถวเดิมได้ค่า `created_at` ส่วน `admin_settings.reauth_minutes` (0–1440, ค่าเริ่มต้น 10, 0 = ไม่ถามซ้ำ) กำหนดว่าการยืนยันใช้ได้นานเท่าไร
+  - ไม่ใส่เวลาลงใน token (แบบ claim `auth_time` ของ OpenID Connect) เพราะทุก request อ่านแถว session อยู่แล้ว (P-004) `SessionChecker.verifiedAt()` แทน `isOpen()` จึงได้เวลามาพร้อมการตรวจว่า session ยังเปิดอยู่ และหลังยืนยันแล้ว client ไม่ต้องเปลี่ยน token แค่ส่งคำขอเดิมซ้ำ
+  - `PermissionAuthenticationConverter` ใส่ `Actor.recentSignIn` = `reauthMinutes` เป็น 0 หรือ `verified_at` ยังไม่เกินเวลานั้น โดยถาม `SettingsService.reauthWindow()` ซึ่ง cache ไว้ใน `reauth-window` แบบ `two-factor-roles` (P-016) service ที่ทำการเปลี่ยนแปลงเสี่ยงเรียก `actor.requireRecentSignIn()` หลังตรวจว่าทำได้ (สิทธิ์, `forbidden`, `self_change`, `not_found`) และก่อนเปลี่ยนอะไร ถ้าเกินเวลาตอบ `REAUTH_REQUIRED` (403)
+  - รายการตายตัวในโค้ด: การมอบ แก้ และถอด role (รวม `POST /users` และ `/users/import` ที่ให้ role ผู้ใช้ใหม่), การแก้สิทธิ์ของ role และการลบ role, การลบผู้ใช้, การ reset รหัสผ่านหรือ two-step sign-in ของคนอื่น, การจบ session ของคนอื่น และ `PATCH /settings` คนที่แก้การตั้งค่าได้จึงเอาข้อใดข้อหนึ่งออกเองไม่ได้ ปรับได้แค่เวลา
+  - ใช้ 403 ไม่ใช่ 401 `insufficient_user_authentication` ของ RFC 9470 เพราะ 401 ของแอปแปลว่าให้ refresh token ซึ่งแก้เรื่องนี้ไม่ได้ และเข้าชุดกับ `two_factor_mandatory`
+  - `POST /api/me/reauthenticate` อยู่ใน `SessionController` (authentication ซึ่งเป็นเจ้าของ session) ใช้ `LoginService` ตรวจรหัสผ่านและรหัส 6 หลักแบบเดียวกับ sign-in: ผิดนับรวมใน lockout และ `RateLimitFilter` จำกัดต่อ IP เท่ากับ `/api/auth/login` ไม่เขียน activity เพราะการเปลี่ยนแปลงที่ตามมามี entry ของตัวเองอยู่แล้ว
+- Consequences: ทุก request อ่าน `verified_at` จากแถวเดิม ไม่มี query เพิ่ม frontend รับ `reauth_required` ที่ `AdminStore` เปิดหน้าต่างขอรหัสผ่าน แล้วส่งคำขอเดิมซ้ำเอง ถ้ารันหลาย instance การเปลี่ยน `reauthMinutes` อาจช้าได้ถึง TTL ของ cache (60 วินาที) บน instance อื่น การเปลี่ยนแปลงเสี่ยงอื่นที่เพิ่มทีหลัง (เช่น กฎบทบาทที่ห้ามถือร่วมกัน) เพิ่มได้ด้วยการเรียก `requireRecentSignIn()` และเพิ่มในตารางของ API.md
