@@ -5,8 +5,8 @@
 สัญญาของ API อยู่ที่ [`API.md`](https://github.com/mpiumakkho/admin-ng-starter/blob/main/src/app/user-management/API.md) ใน admin-ng-starter (ในเครื่อง: `../admin-ng-starter/src/app/user-management/API.md`)
 ไฟล์นี้บอกว่า server ตัวนี้ทำ endpoint ไหนแล้ว ตรวจสิทธิ์ตรงกับสัญญาไหม และมี integration test ไหนเรียกบ้าง
 
-- **Endpoint:** ทำแล้ว 45 จาก 45
-- **มี integration test เรียกตรง:** 44 จาก 45
+- **Endpoint:** ทำแล้ว 47 จาก 47
+- **มี integration test เรียกตรง:** 46 จาก 47
 - **Error code:** สัญญามี 30 ตัว, `ErrorCode` มี 30 ตัว
 
 สถานะ: ✅ ทำแล้ว ❌ ยังไม่มีใน controller
@@ -46,16 +46,18 @@ Integration test: class ที่เรียก endpoint นั้นตรง�
 | ✅ | `GET /users/:id/sessions` | — | `isAuthenticated()` |   | `SessionController.list` | AccessRulesIT, AuthenticationFlowIT, BranchesIT, ReauthenticationIT, RoleAssignmentsIT |
 | ✅ | `DELETE /sessions/:id` | — | `isAuthenticated()` |   | `SessionController.end` | ReauthenticationIT |
 | ✅ | `POST /users/:id/sessions/end` | — | `isAuthenticated()` |   | `SessionController.endAll` | AuthenticationFlowIT, ReasonsIT, ReauthenticationIT |
-| ✅ | `POST /me/two-factor` | — | `isAuthenticated()` |   | `MeController.startTwoFactor` | AccountRulesIT, AuthenticationFlowIT, ReauthenticationIT |
-| ✅ | `POST /me/two-factor/confirm` | — | `isAuthenticated()` |   | `MeController.confirmTwoFactor` | AccountRulesIT, AuthenticationFlowIT, ReauthenticationIT |
-| ✅ | `POST /me/two-factor/disable` | — | `isAuthenticated()` |   | `MeController.disableTwoFactor` | AccountRulesIT |
+| ✅ | `POST /me/two-factor` | — | `isAuthenticated()` |   | `MeController.startTwoFactor` | AccountRulesIT, AuthenticationFlowIT, ReauthenticationIT, RecoveryCodesIT |
+| ✅ | `POST /me/two-factor/confirm` | — | `isAuthenticated()` |   | `MeController.confirmTwoFactor` | AccountRulesIT, AuthenticationFlowIT, ReauthenticationIT, RecoveryCodesIT |
+| ✅ | `POST /me/two-factor/disable` | — | `isAuthenticated()` |   | `MeController.disableTwoFactor` | AccountRulesIT, RecoveryCodesIT |
 | ✅ | `POST /users/:id/two-factor/reset` | — | `hasAuthority('users.edit')` |   | `UserController.resetTwoFactor` | AccountRulesIT, AuthenticationFlowIT, ReauthenticationIT |
+| ✅ | `GET /me/recovery-codes` | — | `isAuthenticated()` |   | `MeController.recoveryCodesLeft` | RecoveryCodesIT |
+| ✅ | `POST /me/recovery-codes` | — | `isAuthenticated()` |   | `MeController.newRecoveryCodes` | RecoveryCodesIT |
 
 ## Confirming who you are
 
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
-| ✅ | `POST /me/reauthenticate` | — | `isAuthenticated()` |   | `SessionController.reauthenticate` | ReauthenticationIT |
+| ✅ | `POST /me/reauthenticate` | — | `isAuthenticated()` |   | `SessionController.reauthenticate` | ReauthenticationIT, RecoveryCodesIT |
 
 ## Users
 
@@ -110,7 +112,7 @@ Integration test: class ที่เรียก endpoint นั้นตรง�
 
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
-| ✅ | `GET /activity` | `activity.view`; through a branch, the entries about its people; without it, an empty list | `isAuthenticated()` | ✅ service | `ActivityController.list` | AccessRulesIT, AccountRulesIT, BranchAdministratorsIT, BranchesIT, ReasonsIT, ReauthenticationIT, RoleAssignmentsIT, RoleConflictsIT |
+| ✅ | `GET /activity` | `activity.view`; through a branch, the entries about its people; without it, an empty list | `isAuthenticated()` | ✅ service | `ActivityController.list` | AccessRulesIT, AccountRulesIT, BranchAdministratorsIT, BranchesIT, ReasonsIT, ReauthenticationIT, RecoveryCodesIT, RoleAssignmentsIT, RoleConflictsIT |
 
 ## Settings
 
