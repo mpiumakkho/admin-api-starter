@@ -1,5 +1,6 @@
 package com.adminstarter.accesscontrol.common.context;
 
+import com.adminstarter.accesscontrol.common.constant.ErrorCode;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -18,9 +19,11 @@ import org.jspecify.annotations.Nullable;
  * @param branchPermissions what roles limited to a branch allow there, by branch id (P-020)
  * @param twoFactorSetupRequired one of their roles requires two-step sign-in and they have not turned it on: until they
  *     do, only setting it up is allowed (P-016)
+ * @param recentSignIn they signed in, or confirmed their password, within the settings' reauthMinutes, or those are 0:
+ *     the risky changes go through (P-023)
  */
 public record Actor(UUID userId, UUID sessionId, Set<UUID> roleIds, Set<String> permissions,
-        Map<UUID, Set<String>> branchPermissions, boolean twoFactorSetupRequired) {
+        Map<UUID, Set<String>> branchPermissions, boolean twoFactorSetupRequired, boolean recentSignIn) {
 
     public Actor {
         roleIds = Set.copyOf(roleIds);
@@ -29,9 +32,9 @@ public record Actor(UUID userId, UUID sessionId, Set<UUID> roleIds, Set<String> 
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> Set.copyOf(entry.getValue())));
     }
 
-    /** Someone with no role limited to a branch */
+    /** Someone with no role limited to a branch, who has just signed in */
     public Actor(UUID userId, UUID sessionId, Set<UUID> roleIds, Set<String> permissions, boolean twoFactorSetupRequired) {
-        this(userId, sessionId, roleIds, permissions, Map.of(), twoFactorSetupRequired);
+        this(userId, sessionId, roleIds, permissions, Map.of(), twoFactorSetupRequired, true);
     }
 
     /** Across the whole organization */
@@ -49,5 +52,16 @@ public record Actor(UUID userId, UUID sessionId, Set<UUID> roleIds, Set<String> 
 
     public boolean is(UUID userId) {
         return this.userId.equals(userId);
+    }
+
+    /**
+     * For the changes that could take the system over or shut people out (API.md, "Confirming who you are"):
+     * reauth_required unless they signed in or confirmed their password recently enough. Asked once the change is known
+     * to be allowed, before anything changes.
+     */
+    public void requireRecentSignIn() {
+        if (!recentSignIn) {
+            throw ErrorCode.REAUTH_REQUIRED.exception();
+        }
     }
 }

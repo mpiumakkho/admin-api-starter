@@ -80,6 +80,7 @@ public class RoleAssignmentService {
     public UserResponse assign(Actor actor, CreateRoleAssignmentRequest request) {
         var user = access.findManageable(actor, request.userId());
         SelfProtectionPolicy.forbidSelf(actor, List.of(user.getId()));
+        actor.requireRecentSignIn();
         give(actor, user, request.grant(), resolver.of(user.getId()));
         return mapper.toResponse(user);
     }
@@ -90,6 +91,7 @@ public class RoleAssignmentService {
         var assignment = assignments.findById(id).orElseThrow(NOT_FOUND::exception);
         var user = changeable(actor, assignment);
         var role = roles.requireAssignable(actor, assignment.getRoleId());
+        actor.requireRecentSignIn();
         var now = clock.instant();
         var changes = new ArrayList<FieldChange>();
         changes.add(FieldChange.set("roleId", assignment.getRoleId().toString()));
@@ -128,6 +130,7 @@ public class RoleAssignmentService {
         var assignment = assignments.findById(id).orElseThrow(NOT_FOUND::exception);
         var user = changeable(actor, assignment);
         roles.requireAssignable(actor, assignment.getRoleId());
+        actor.requireRecentSignIn();
         var why = settings.requireReason("removeRole", reason);
         var hadAdministrators = resolver.administrators();
         assignments.delete(assignment);
@@ -151,6 +154,7 @@ public class RoleAssignmentService {
         var ids = request.userIds().stream().distinct().toList();
         SelfProtectionPolicy.forbidSelf(actor, ids);
         var users = ids.stream().map(id -> access.findManageable(actor, id)).toList();
+        actor.requireRecentSignIn();
         var now = clock.instant();
         var changed = new ArrayList<User>();
         if (request.add() != null) {

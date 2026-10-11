@@ -13,7 +13,9 @@ import com.adminstarter.accesscontrol.security.SessionChecker;
 import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.context.ApplicationEventPublisher;
@@ -47,16 +49,16 @@ public class SessionService implements SessionChecker {
     }
 
     @Override
-    public boolean isOpen(UUID sessionId, UUID userId) {
+    public Optional<Instant> verifiedAt(UUID sessionId, UUID userId) {
         var now = clock.instant();
         var session = sessions.findById(sessionId).orElse(null);
         if (session == null || !session.getUserId().equals(userId) || !session.openAt(now)) {
-            return false;
+            return Optional.empty();
         }
         if (session.getLastSeenAt().plus(SEEN_EVERY).isBefore(now)) {
             session.seen(now);
         }
-        return true;
+        return Optional.of(session.getVerifiedAt());
     }
 
     @Transactional(readOnly = true)
@@ -69,11 +71,17 @@ public class SessionService implements SessionChecker {
                 .toList();
     }
 
-    /** Someone else's needs a reason when the settings say so (P-021); your own never does */
+    /**
+     * Someone else's needs a recent sign-in (P-023), and a reason when the settings say so (P-021); your own needs
+     * neither
+     */
     public void end(Actor actor, UUID sessionId, @Nullable String reason) {
         var now = clock.instant();
         var session = sessions.findById(sessionId).filter(candidate -> candidate.openAt(now)).orElseThrow(NOT_FOUND::exception);
         var user = users.requireSecurityManageable(actor, session.getUserId());
+        if (!actor.is(user.id())) {
+            actor.requireRecentSignIn();
+        }
         var why = actor.is(user.id()) ? "" : settings.requireReason("endSessions", reason);
         session.end(now);
         events.publishEvent(new SessionsEnded(actor.userId(), user.id(), fullName(user), List.of(session.getDeviceLabel()), why));
@@ -82,6 +90,9 @@ public class SessionService implements SessionChecker {
     /** Everywhere; for yourself, everywhere but the browser asking */
     public void endAll(Actor actor, UUID userId, @Nullable String reason) {
         var user = users.requireSecurityManageable(actor, userId);
+        if (!actor.is(userId)) {
+            actor.requireRecentSignIn();
+        }
         var why = actor.is(userId) ? "" : settings.requireReason("endSessions", reason);
         var ended = endOpen(userId, actor.sessionId());
         if (!ended.isEmpty()) {

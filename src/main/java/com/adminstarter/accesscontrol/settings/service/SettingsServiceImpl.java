@@ -13,6 +13,7 @@ import com.adminstarter.accesscontrol.settings.entity.AdminSettings;
 import com.adminstarter.accesscontrol.settings.event.SettingsUpdated;
 import com.adminstarter.accesscontrol.settings.repository.AdminSettingsRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -31,6 +32,8 @@ public class SettingsServiceImpl implements SettingsService {
 
     /** requiresTwoFactor; evicted, after commit, whenever twoFactorRoleIds may have changed */
     static final String TWO_FACTOR_ROLES_CACHE = "two-factor-roles";
+    /** reauthWindow; evicted, after commit, whenever the settings change */
+    static final String REAUTH_WINDOW_CACHE = "reauth-window";
 
     private final AdminSettingsRepository settings;
     private final RoleService roles;
@@ -60,6 +63,13 @@ public class SettingsServiceImpl implements SettingsService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = REAUTH_WINDOW_CACHE)
+    public Duration reauthWindow() {
+        return Duration.ofMinutes(load().getReauthMinutes());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public PasswordPolicyResponse passwordPolicy() {
         var current = load();
         return new PasswordPolicyResponse(current.getPasswordMinLength(), current.getPasswordHistory());
@@ -75,7 +85,8 @@ public class SettingsServiceImpl implements SettingsService {
         return text;
     }
 
-    @CacheEvict(cacheNames = TWO_FACTOR_ROLES_CACHE, allEntries = true)
+    /** A risky change: it needs a recent sign-in (P-023) */
+    @CacheEvict(cacheNames = {TWO_FACTOR_ROLES_CACHE, REAUTH_WINDOW_CACHE}, allEntries = true)
     public SettingsResponse update(Actor actor, UpdateSettingsRequest request) {
         var current = load();
         if (request.defaultRoleId() != null) {
@@ -84,6 +95,7 @@ public class SettingsServiceImpl implements SettingsService {
         if (request.twoFactorRoleIds() != null) {
             request.twoFactorRoleIds().forEach(this::requireRole);
         }
+        actor.requireRecentSignIn();
         var defaultRoleId = Objects.requireNonNullElse(request.defaultRoleId(), current.getDefaultRoleId());
         var domains = request.allowedDomains() == null ? current.getAllowedDomains() : normalize(request.allowedDomains());
         var inviteExpiryDays = Objects.requireNonNullElse(request.inviteExpiryDays(), current.getInviteExpiryDays());
@@ -98,6 +110,7 @@ public class SettingsServiceImpl implements SettingsService {
         var branchesEnabled = Objects.requireNonNullElse(request.branchesEnabled(), current.isBranchesEnabled());
         var reasonsRequired = request.reasonsRequired() == null ? current.getReasonsRequired()
                 : request.reasonsRequired().stream().distinct().toList();
+        var reauthMinutes = Objects.requireNonNullElse(request.reauthMinutes(), current.getReauthMinutes());
 
         // In the order of AdminSettings in models.ts, the two lists last, as items added and removed
         var changes = new ArrayList<FieldChange>();
@@ -110,6 +123,7 @@ public class SettingsServiceImpl implements SettingsService {
         FieldChange.diff("activityRetentionDays", current.getActivityRetentionDays(), activityRetentionDays)
                 .ifPresent(changes::add);
         FieldChange.diff("branchesEnabled", current.isBranchesEnabled(), branchesEnabled).ifPresent(changes::add);
+        FieldChange.diff("reauthMinutes", current.getReauthMinutes(), reauthMinutes).ifPresent(changes::add);
         FieldChange.listDiff("allowedDomains", current.getAllowedDomains(), domains).ifPresent(changes::add);
         FieldChange.listDiff("twoFactorRoleIds", strings(current.getTwoFactorRoleIds()), strings(twoFactorRoleIds))
                 .ifPresent(changes::add);
@@ -120,6 +134,7 @@ public class SettingsServiceImpl implements SettingsService {
         current.updateAccountRules(twoFactorRoleIds, passwordMinLength, passwordHistory, activityRetentionDays, now);
         current.changeBranchesEnabled(branchesEnabled, now);
         current.changeReasonsRequired(reasonsRequired, now);
+        current.changeReauthMinutes(reauthMinutes, now);
         if (!changes.isEmpty()) {
             events.publishEvent(new SettingsUpdated(actor.userId(), List.copyOf(changes)));
         }
@@ -161,6 +176,6 @@ public class SettingsServiceImpl implements SettingsService {
         return new SettingsResponse(settings.getDefaultRoleId(), settings.getAllowedDomains(), settings.getInviteExpiryDays(),
                 settings.getSessionTimeoutMinutes(), settings.getTwoFactorRoleIds(), settings.getPasswordMinLength(),
                 settings.getPasswordHistory(), settings.getActivityRetentionDays(), settings.isBranchesEnabled(),
-                settings.getReasonsRequired());
+                settings.getReasonsRequired(), settings.getReauthMinutes());
     }
 }

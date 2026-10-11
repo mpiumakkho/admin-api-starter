@@ -17,6 +17,8 @@ public class AdminSettings {
     public static final short ID = 1;
     /** What a new installation asks a reason for: suspending or reactivating someone, and deleting people */
     public static final List<String> DEFAULT_REASONS_REQUIRED = List.of("status", "delete");
+    /** How long a new installation lets a sign-in or a confirmed password last for the risky changes */
+    public static final int DEFAULT_REAUTH_MINUTES = 10;
 
     @Id
     private short id;
@@ -46,6 +48,12 @@ public class AdminSettings {
     /** The changes that must have a reason (P-021), such as "status" and "delete"; without duplicates */
     @JdbcTypeCode(SqlTypes.ARRAY)
     private List<String> reasonsRequired = DEFAULT_REASONS_REQUIRED;
+
+    /**
+     * How long after signing in, or confirming their password, someone can make the risky changes before the password
+     * is asked again (P-023); 0 never asks
+     */
+    private int reauthMinutes = DEFAULT_REAUTH_MINUTES;
 
     private Instant updatedAt;
 
@@ -80,6 +88,11 @@ public class AdminSettings {
 
     public void changeReasonsRequired(List<String> reasonsRequired, Instant now) {
         this.reasonsRequired = List.copyOf(reasonsRequired);
+        this.updatedAt = now;
+    }
+
+    public void changeReauthMinutes(int reauthMinutes, Instant now) {
+        this.reauthMinutes = reauthMinutes;
         this.updatedAt = now;
     }
 
@@ -136,5 +149,9 @@ public class AdminSettings {
 
     public List<String> getReasonsRequired() {
         return List.copyOf(reasonsRequired);
+    }
+
+    public int getReauthMinutes() {
+        return reauthMinutes;
     }
 }

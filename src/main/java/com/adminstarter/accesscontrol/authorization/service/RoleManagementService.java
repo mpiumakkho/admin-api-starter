@@ -108,6 +108,8 @@ public class RoleManagementService {
             if (!GrantPolicy.holdsAll(actor.permissions(), union(added, removed))) {
                 throw FORBIDDEN.exception();
             }
+            // What a role allows needs a recent sign-in (P-023); its name, color or rules alone do not
+            actor.requireRecentSignIn();
         }
         var tone = Objects.requireNonNullElse(request.tone(), role.getTone());
         var maxDays = request.assignment() == null ? role.getAssignmentMaxDays() : request.assignment().maxDays();
@@ -143,6 +145,7 @@ public class RoleManagementService {
         if (holders.heldNowOrLater(id)) {
             throw ROLE_IN_USE.exception();
         }
+        actor.requireRecentSignIn();
         var removed = RoleMapper.ordered(role.getPermissions(), mapper.order());
         events.publishEvent(new RoleDeleted(actor.userId(), id, role.getName(),
                 List.of(FieldChange.list("permissions", List.of(), removed))));

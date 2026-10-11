@@ -14,4 +14,5 @@ public record SettingsResponse(
         int passwordHistory,
         int activityRetentionDays,
         boolean branchesEnabled,
-        List<String> reasonsRequired) {}
+        List<String> reasonsRequired,
+        int reauthMinutes) {}

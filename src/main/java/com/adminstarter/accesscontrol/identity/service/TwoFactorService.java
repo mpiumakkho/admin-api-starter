@@ -89,6 +89,7 @@ public class TwoFactorService {
     public UserResponse reset(Actor actor, UUID userId, @Nullable String reason) {
         SelfProtectionPolicy.forbidSelf(actor, List.of(userId));
         access.findManageable(actor, userId);
+        actor.requireRecentSignIn();
         var why = settings.requireReason("resetSignIn", reason);
         load(userId).turnOffTwoFactor();
         return changed(actor, userId, false, why);

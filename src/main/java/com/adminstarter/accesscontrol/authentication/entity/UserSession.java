@@ -22,6 +22,8 @@ public class UserSession {
     private Instant lastSeenAt;
     /** Moves forward with every refresh */
     private Instant expiresAt;
+    /** When it last proved who is signed in: its sign-in, or a password confirmed since; refreshing does not count */
+    private Instant verifiedAt;
     /** "Keep me signed in": the cookie outlives the browser, and the session lasts longer */
     private boolean remember;
     private String ip;
@@ -39,6 +41,7 @@ public class UserSession {
         this.os = os;
         this.createdAt = now;
         this.lastSeenAt = now;
+        this.verifiedAt = now;
         this.expiresAt = expiresAt;
     }
 
@@ -47,6 +50,12 @@ public class UserSession {
     }
 
     public void seen(Instant now) {
+        this.lastSeenAt = now;
+    }
+
+    /** The person confirmed their password (P-023) */
+    public void verified(Instant now) {
+        this.verifiedAt = now;
         this.lastSeenAt = now;
     }
 
@@ -80,6 +89,10 @@ public class UserSession {
 
     public Instant getLastSeenAt() {
         return lastSeenAt;
+    }
+
+    public Instant getVerifiedAt() {
+        return verifiedAt;
     }
 
     public boolean isRemember() {

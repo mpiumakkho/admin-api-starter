@@ -1,5 +1,7 @@
 package com.adminstarter.accesscontrol.security;
 
+import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -9,6 +11,9 @@ import java.util.UUID;
  */
 public interface SessionChecker {
 
-    /** Open and belonging to this user; also notes that the session was just used */
-    boolean isOpen(UUID sessionId, UUID userId);
+    /**
+     * When the person last proved who they are in this session, by signing in or confirming their password (P-023),
+     * while it is open and belongs to this user; empty otherwise. Also notes that the session was just used.
+     */
+    Optional<Instant> verifiedAt(UUID sessionId, UUID userId);
 }
