@@ -161,3 +161,16 @@
   - การมอบที่หมดอายุยังเก็บไว้ให้ต่ออายุได้ แล้วลบพร้อม activity ตาม `activityRetentionDays` (P-018) `RoleAssignmentExpiryJob` รันทุก 5 นาที เขียน `role_assignment.expired` (actor null) ครั้งเดียวต่อการมอบผ่าน `expiry_logged_at` แล้วส่ง live update ทุก instance รัน job นี้ได้พร้อมกันเพราะ update แบบมีเงื่อนไขทำให้เขียนครั้งเดียว
   - activity ใหม่: `role_assignment.added`, `.updated`, `.removed`, `.expired` แทน `user.updated` ที่ field `roleId` และ `activity.actor_id` เป็น null ได้ เพิ่ม `ErrorCode` สี่ตัวข้างบน
 - Consequences: สัญญา API เปลี่ยนแบบใช้กับของเดิมไม่ได้ (`User.roleId`, `POST /users/role`) frontend และ server ต้องเปลี่ยนพร้อมกันตาม P-001 `SettingsService.requiresTwoFactor` รับชุด role (P-016) ส่วน `defaultRoleId` ใช้กับ user ใหม่ที่ไม่ได้ระบุ role ผู้ดูแลที่เคยแก้สิทธิ์ของ Manager จะเห็นค่ากลับเป็นตามโค้ดหลังอัปเกรด ต้องคัดลอกเป็น role ใหม่แทน
+
+## P-020 สาขา: module `branch`, คนสังกัดหนึ่งสาขา และการมอบ role จำกัดเฉพาะสาขา (ต่อจาก P-019)
+
+- Context: API.md เพิ่มสาขาแบบเลือกเปิดได้ (`branchesEnabled` ในการตั้งค่า) Google Workspace ให้ผู้ใช้แต่ละคนอยู่ใน organizational unit เดียว ส่วน Azure RBAC ให้การมอบ role มีขอบเขต (scope) API.md จึงเพิ่ม `User.branchId` (สาขาที่สังกัด หรือ null) และ `RoleAssignment.branchId` (null = ทั้งองค์กร) กับ `/branches`
+- Decision:
+  - module ใหม่ `branch` ({controller, service, repository, entity, dto, event, spi}) อยู่ใต้ identity ในทิศทางการพึ่งพา: `authorization` ← `settings` ← `branch` ← `identity` เพราะ identity ต้องตรวจว่าสาขามีอยู่และเปิดอยู่ ส่วน branch ไม่พึ่ง module ใดนอกจาก common รายชื่อ module ใน `ModuleBoundaryTest`, `contracts/dependency-rules.yaml` และ `contracts/structure.yaml` เพิ่ม `branch` (แบบเดียวกับ P-007)
+  - ตาราง `branches` (code unique ไม่สนตัวพิมพ์, name, active) `users.branch_id` และ `role_assignments.branch_id` เป็น FK (`V5__branches.sql`) สาขาที่ปิดเก็บคนและการมอบเดิมไว้ แต่รับคนหรือการมอบใหม่ไม่ได้ (`branch_closed`) การลบตอบ `branch_in_use` ถ้ายังมีคนสังกัดหรือถือ role ที่สาขานั้นตอนนี้หรือภายหลัง ซึ่ง identity ตอบผ่าน `branch/spi/BranchMemberProvider` (แบบ `RoleHolderProvider` ของ P-019) การมอบที่หมดแล้วของสาขานั้นถูกลบไปด้วย (on delete cascade)
+  - สิทธิ์ที่ user management ตรวจ (`hasAuthority`) มาจากการมอบแบบทั้งองค์กรเท่านั้น การมอบเฉพาะสาขาให้สิทธิ์ในสาขานั้น `Actor.branchPermissions` และ `Actor.can(permission, branchId)` ให้ module ธุรกิจใช้ ผู้ดูแลระดับสาขา (จัดการคนในสาขาตัวเอง) ยังไม่ทำ เพราะกฎ "ห้ามให้สิทธิ์เกินที่มี" ต้องคิดแยกตามขอบเขต
+  - `last_administrator` นับเฉพาะการมอบแบบถาวรและทั้งองค์กร การมอบซ้อนช่วงนับแยกตาม (role, ขอบเขต)
+  - permission ใหม่ `branches.view` และ `branches.manage` ใน `CorePermissions` (Administrator ได้เองตาม P-019) Manager ได้ `branches.view`
+  - activity `branch.created`, `branch.updated`, `branch.deleted` และ `ErrorCode` `CODE_TAKEN`, `BRANCH_IN_USE`, `BRANCH_CLOSED` (409)
+- Consequences: เพิ่มสาขาหรือขอบเขตอื่น (เขต, ภาค) ทีหลังได้โดยเปลี่ยน `branch_id` เป็นขอบเขตแบบลำดับชั้น module ธุรกิจที่กรองข้อมูลตามสาขาใช้ `Actor.can(permission, branchId)` แทน `hasAuthority` ตรง ๆ
+
