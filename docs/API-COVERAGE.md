@@ -46,8 +46,8 @@ Integration test: class ที่เรียก endpoint นั้นตรง�
 | ✅ | `GET /users/:id/sessions` | — | `isAuthenticated()` |   | `SessionController.list` | AccessRulesIT, AuthenticationFlowIT, BranchesIT, ReauthenticationIT, RoleAssignmentsIT |
 | ✅ | `DELETE /sessions/:id` | — | `isAuthenticated()` |   | `SessionController.end` | ReauthenticationIT |
 | ✅ | `POST /users/:id/sessions/end` | — | `isAuthenticated()` |   | `SessionController.endAll` | AuthenticationFlowIT, ReasonsIT, ReauthenticationIT |
-| ✅ | `POST /me/two-factor` | — | `isAuthenticated()` |   | `MeController.startTwoFactor` | AccountRulesIT, AuthenticationFlowIT, ReauthenticationIT, RecoveryCodesIT |
-| ✅ | `POST /me/two-factor/confirm` | — | `isAuthenticated()` |   | `MeController.confirmTwoFactor` | AccountRulesIT, AuthenticationFlowIT, ReauthenticationIT, RecoveryCodesIT |
+| ✅ | `POST /me/two-factor` | — | `isAuthenticated()` |   | `MeController.startTwoFactor` | AccountRulesIT, AuthenticationFlowIT, FailedSignInsIT, ReauthenticationIT, RecoveryCodesIT |
+| ✅ | `POST /me/two-factor/confirm` | — | `isAuthenticated()` |   | `MeController.confirmTwoFactor` | AccountRulesIT, AuthenticationFlowIT, FailedSignInsIT, ReauthenticationIT, RecoveryCodesIT |
 | ✅ | `POST /me/two-factor/disable` | — | `isAuthenticated()` |   | `MeController.disableTwoFactor` | AccountRulesIT, RecoveryCodesIT |
 | ✅ | `POST /users/:id/two-factor/reset` | — | `hasAuthority('users.edit')` |   | `UserController.resetTwoFactor` | AccountRulesIT, AuthenticationFlowIT, ReauthenticationIT |
 | ✅ | `GET /me/recovery-codes` | — | `isAuthenticated()` |   | `MeController.recoveryCodesLeft` | RecoveryCodesIT |
@@ -57,7 +57,7 @@ Integration test: class ที่เรียก endpoint นั้นตรง�
 
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
-| ✅ | `POST /me/reauthenticate` | — | `isAuthenticated()` |   | `SessionController.reauthenticate` | ReauthenticationIT, RecoveryCodesIT |
+| ✅ | `POST /me/reauthenticate` | — | `isAuthenticated()` |   | `SessionController.reauthenticate` | FailedSignInsIT, ReauthenticationIT, RecoveryCodesIT |
 
 ## Users
 
@@ -67,7 +67,7 @@ Integration test: class ที่เรียก endpoint นั้นตรง�
 | ✅ | `POST /users` | `users.create` | `hasAuthority('users.create')` | ✅ | `UserController.create` | AccessRulesIT, AccountRulesIT, ApiIntegrationTest, AuthenticationFlowIT, BranchAdministratorsIT, BranchesIT, ReauthenticationIT, RoleAssignmentsIT, RoleConflictsIT |
 | ✅ | `POST /users/import` | `users.create` | `hasAuthority('users.create')` | ✅ | `UserController.importUsers` | AccessRulesIT, ReauthenticationIT |
 | ✅ | `PATCH /users/:id` | `users.edit`; without it, people may change their own `firstName`, `lastName`, `phone` and `avatar` | `isAuthenticated()` | ✅ service | `UserController.update` | AccessRulesIT, AccountRulesIT, BranchAdministratorsIT, BranchesIT |
-| ✅ | `POST /users/status` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `UserController.setStatus` | AccessRulesIT, AuthenticationFlowIT, BranchAdministratorsIT, ReasonsIT, ReauthenticationIT, RoleAssignmentsIT |
+| ✅ | `POST /users/status` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `UserController.setStatus` | AccessRulesIT, AuthenticationFlowIT, BranchAdministratorsIT, FailedSignInsIT, ReasonsIT, ReauthenticationIT, RoleAssignmentsIT |
 | ✅ | `POST /users/delete` | `users.delete` | `hasAuthority('users.delete')` | ✅ | `UserController.delete` | AccessRulesIT, BranchAdministratorsIT, ReauthenticationIT, RoleAssignmentsIT |
 | ✅ | `POST /users/:id/reset-password` | `users.edit` | `hasAuthority('users.edit')` | ✅ | `UserController.resetPassword` | AccessRulesIT, AccountRulesIT, ReauthenticationIT |
 | ✅ | `POST /users/:id/resend-invite` | `users.create` | `hasAuthority('users.create')` | ✅ | `UserController.resendInvite` | — |
@@ -112,7 +112,7 @@ Integration test: class ที่เรียก endpoint นั้นตรง�
 
 | | Request | สิทธิ์ (API.md) | `@PreAuthorize` | | Controller | Integration test |
 | --- | --- | --- | --- | --- | --- | --- |
-| ✅ | `GET /activity` | `activity.view`; through a branch, the entries about its people; without it, an empty list | `isAuthenticated()` | ✅ service | `ActivityController.list` | AccessRulesIT, AccountRulesIT, BranchAdministratorsIT, BranchesIT, ReasonsIT, ReauthenticationIT, RecoveryCodesIT, RoleAssignmentsIT, RoleConflictsIT |
+| ✅ | `GET /activity` | `activity.view`; through a branch, the entries about its people; without it, an empty list | `isAuthenticated()` | ✅ service | `ActivityController.list` | AccessRulesIT, AccountRulesIT, BranchAdministratorsIT, BranchesIT, FailedSignInsIT, ReasonsIT, ReauthenticationIT, RecoveryCodesIT, RoleAssignmentsIT, RoleConflictsIT |
 
 ## Settings
 
