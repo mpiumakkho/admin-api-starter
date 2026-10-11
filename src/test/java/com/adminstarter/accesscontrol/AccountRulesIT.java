@@ -54,7 +54,7 @@ class AccountRulesIT extends ApiIntegrationTest {
         for (var outside : List.<Map<String, Object>>of(
                 Map.of("passwordMinLength", 7), Map.of("passwordMinLength", 65),
                 Map.of("passwordHistory", -1), Map.of("passwordHistory", 25),
-                Map.of("activityRetentionDays", 29), Map.of("activityRetentionDays", 3651),
+                Map.of("activityRetentionDays", 89), Map.of("activityRetentionDays", 3651),
                 Map.of("twoFactorRoleIds", List.of("not-a-role-id")))) {
             assertRefused(send(HttpMethod.PATCH, "/api/settings", admin, outside), HttpStatus.BAD_REQUEST, "invalid_request");
         }
@@ -232,12 +232,13 @@ class AccountRulesIT extends ApiIntegrationTest {
 
     @Test
     void the_nightly_job_deletes_activity_older_than_the_settings_keep_it() {
-        var old = entryAt(Instant.now().minus(Duration.ofDays(40)));
-        var recent = entryAt(Instant.now().minus(Duration.ofDays(20)));
+        var old = entryAt(Instant.now().minus(Duration.ofDays(100)));
+        var recent = entryAt(Instant.now().minus(Duration.ofDays(60)));
         try {
             retentionJob.run();
             assertThat(exists(old)).as("730 days by default").isTrue();
-            withSettings(admin(), Map.of("activityRetentionDays", 30), () -> {
+            // 90 days at least (P-026)
+            withSettings(admin(), Map.of("activityRetentionDays", 90), () -> {
                 retentionJob.run();
                 assertThat(exists(old)).isFalse();
                 assertThat(exists(recent)).isTrue();

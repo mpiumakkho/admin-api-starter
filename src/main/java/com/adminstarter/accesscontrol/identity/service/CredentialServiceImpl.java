@@ -5,6 +5,7 @@ import static com.adminstarter.accesscontrol.common.constant.ErrorCode.INVALID_C
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.identity.entity.PreviousPassword;
 import com.adminstarter.accesscontrol.identity.entity.UserCredential;
+import com.adminstarter.accesscontrol.identity.event.AccountLocked;
 import com.adminstarter.accesscontrol.identity.event.RecoveryCodeUsed;
 import com.adminstarter.accesscontrol.identity.event.UserPasswordChanged;
 import com.adminstarter.accesscontrol.identity.policy.LockoutPolicy;
@@ -67,6 +68,12 @@ public class CredentialServiceImpl implements CredentialService {
         }
         failed(credential);
         return false;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean lockedNow(UUID userId) {
+        return credentials.findById(userId).map(credential -> credential.lockedAt(clock.instant())).orElse(false);
     }
 
     @Override
@@ -164,9 +171,12 @@ public class CredentialServiceImpl implements CredentialService {
         previousPasswords.save(new PreviousPassword(credential.getUserId(), hash, clock.instant()));
     }
 
+    /** One more wrong answer in a row; the one that locks the account is logged (P-026) */
     private void failed(UserCredential credential) {
-        var lockUntil = lockoutPolicy.lockFor(credential.getFailedAttempts() + 1).map(clock.instant()::plus).orElse(null);
-        credential.failed(lockUntil);
+        var lockFor = lockoutPolicy.lockFor(credential.getFailedAttempts() + 1);
+        credential.failed(lockFor.map(clock.instant()::plus).orElse(null));
+        lockFor.ifPresent(duration -> events.publishEvent(new AccountLocked(credential.getUserId(),
+                access.find(credential.getUserId()).getFullName(), duration.toMinutes())));
     }
 
     private UserCredential load(UUID userId) {

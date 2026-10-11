@@ -4,6 +4,7 @@ import com.adminstarter.accesscontrol.audit.entity.AuditLog;
 import com.adminstarter.accesscontrol.audit.event.ActivityRecorded;
 import com.adminstarter.accesscontrol.audit.repository.AuditLogRepository;
 import com.adminstarter.accesscontrol.authentication.event.SessionsEnded;
+import com.adminstarter.accesscontrol.authentication.event.SignInFailed;
 import com.adminstarter.accesscontrol.authentication.event.SignedIn;
 import com.adminstarter.accesscontrol.authorization.event.RoleConflictCreated;
 import com.adminstarter.accesscontrol.authorization.event.RoleConflictDeleted;
@@ -20,6 +21,7 @@ import com.adminstarter.accesscontrol.identity.event.RoleAssignmentAdded;
 import com.adminstarter.accesscontrol.identity.event.RoleAssignmentExpired;
 import com.adminstarter.accesscontrol.identity.event.RoleAssignmentRemoved;
 import com.adminstarter.accesscontrol.identity.event.RoleAssignmentUpdated;
+import com.adminstarter.accesscontrol.identity.event.AccountLocked;
 import com.adminstarter.accesscontrol.identity.event.RecoveryCodeUsed;
 import com.adminstarter.accesscontrol.identity.event.RecoveryCodesCreated;
 import com.adminstarter.accesscontrol.identity.event.TwoFactorChanged;
@@ -137,6 +139,17 @@ public class AuditListener {
     @EventListener
     void on(RecoveryCodesCreated event) {
         record(event.userId(), "auth.recovery_codes_created", event.fullName(), event.userId(), List.of());
+    }
+
+    @EventListener
+    void on(SignInFailed event) {
+        record(event.userId(), "auth.sign_in_failed", event.fullName(), event.userId(), List.of(FieldChange.set("cause", event.cause())));
+    }
+
+    @EventListener
+    void on(AccountLocked event) {
+        record(event.userId(), "auth.account_locked", event.fullName(), event.userId(),
+                List.of(FieldChange.set("lockMinutes", String.valueOf(event.minutes()))));
     }
 
     @EventListener

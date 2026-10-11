@@ -13,6 +13,7 @@ import com.adminstarter.accesscontrol.authentication.dto.ReauthenticateRequest;
 import com.adminstarter.accesscontrol.authentication.dto.TokenResponse;
 import com.adminstarter.accesscontrol.authentication.entity.RefreshToken;
 import com.adminstarter.accesscontrol.authentication.entity.UserSession;
+import com.adminstarter.accesscontrol.authentication.event.SignInFailed;
 import com.adminstarter.accesscontrol.authentication.event.SignedIn;
 import com.adminstarter.accesscontrol.authentication.repository.RefreshTokenRepository;
 import com.adminstarter.accesscontrol.authentication.repository.UserSessionRepository;
@@ -81,11 +82,15 @@ public class LoginService {
             credentials.checkNoPassword(request.password());
             throw INVALID_CREDENTIALS.exception();
         }
+        var locked = credentials.lockedNow(account.id());
         if (!credentials.checkPassword(account.id(), request.password())) {
+            failed(account, locked ? "locked" : "password");
             throw INVALID_CREDENTIALS.exception();
         }
         if (!account.active()) {
-            throw ("suspended".equals(account.status()) ? ACCOUNT_SUSPENDED : INVITE_PENDING).exception();
+            var suspended = "suspended".equals(account.status());
+            failed(account, suspended ? "suspended" : "invited");
+            throw (suspended ? ACCOUNT_SUSPENDED : INVITE_PENDING).exception();
         }
         checkCode(account, request.code());
         credentials.signInSucceeded(account.id());
@@ -131,7 +136,9 @@ public class LoginService {
      */
     public void reauthenticate(Actor actor, ReauthenticateRequest request) {
         var account = users.findAccount(actor.userId()).filter(AccountSummary::active).orElseThrow(UNAUTHENTICATED::exception);
+        var locked = credentials.lockedNow(account.id());
         if (!credentials.checkPassword(account.id(), request.password())) {
+            failed(account, locked ? "locked" : "password");
             throw INVALID_CREDENTIALS.exception();
         }
         checkCode(account, request.code());
@@ -149,7 +156,10 @@ public class LoginService {
                 .ifPresent(session -> session.end(clock.instant()));
     }
 
-    /** With two-step sign-in on: two_factor_required without a code, invalid_code for a wrong one, which counts */
+    /**
+     * With two-step sign-in on: two_factor_required without a code, invalid_code for a wrong one, which counts and is
+     * logged
+     */
     private void checkCode(AccountSummary account, @Nullable String code) {
         if (!account.twoFactor()) {
             return;
@@ -158,8 +168,17 @@ public class LoginService {
             throw TWO_FACTOR_REQUIRED.exception();
         }
         if (!credentials.checkTwoFactorCode(account.id(), code)) {
+            failed(account, "code");
             throw INVALID_CODE.exception();
         }
+    }
+
+    /**
+     * A refused sign-in, or password confirmation, of an account that exists, for the activity log (P-026): password,
+     * code, locked, suspended or invited. The refusal still commits it (noRollbackFor).
+     */
+    private void failed(AccountSummary account, String cause) {
+        events.publishEvent(new SignInFailed(account.id(), account.fullName(), cause));
     }
 
     private String newRefreshToken(UserSession session, Instant now) {

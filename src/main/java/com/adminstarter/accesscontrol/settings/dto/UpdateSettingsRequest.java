@@ -18,7 +18,7 @@ public record UpdateSettingsRequest(
         @Nullable @Size(max = 100) List<@NotNull UUID> twoFactorRoleIds,
         @Nullable @Min(8) @Max(64) Integer passwordMinLength,
         @Nullable @Min(0) @Max(24) Integer passwordHistory,
-        @Nullable @Min(30) @Max(3650) Integer activityRetentionDays,
+        @Nullable @Min(90) @Max(3650) Integer activityRetentionDays,
         @Nullable Boolean branchesEnabled,
         @Nullable @Size(max = 10) List<@NotNull @Pattern(regexp = REASON_ACTIONS) String> reasonsRequired,
         @Nullable @Min(0) @Max(1440) Integer reauthMinutes) {
