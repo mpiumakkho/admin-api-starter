@@ -9,7 +9,6 @@ import com.adminstarter.accesscontrol.identity.repository.RoleAssignmentReposito
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -44,10 +43,13 @@ public class RoleAssignmentResolver implements RoleHolderProvider {
                 .collect(Collectors.groupingBy(RoleAssignment::getUserId));
     }
 
-    /** The roles someone holds now or will hold: whoever manages them must be able to give all of these */
-    public Set<UUID> heldRoleIds(UUID userId) {
+    /**
+     * The assignments someone holds now or will hold: whoever manages them must be able to give each of these, in its
+     * scope (P-024)
+     */
+    public List<RoleAssignment> heldBy(UUID userId) {
         var now = clock.instant();
-        return of(userId).stream().filter(item -> item.heldAt(now)).map(RoleAssignment::getRoleId).collect(Collectors.toSet());
+        return of(userId).stream().filter(item -> item.heldAt(now)).toList();
     }
 
     /** How many active people hold a role with every permission, now and for good; at least one must stay */

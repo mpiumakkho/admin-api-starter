@@ -4,10 +4,12 @@ import com.adminstarter.accesscontrol.AccessControlProperties;
 import com.adminstarter.accesscontrol.audit.dto.ActivityResponse;
 import com.adminstarter.accesscontrol.audit.entity.AuditLog;
 import com.adminstarter.accesscontrol.audit.repository.AuditLogRepository;
+import com.adminstarter.accesscontrol.audit.spi.ActivityAudienceProvider;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.common.dto.FieldChange;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
@@ -24,24 +26,33 @@ public class ActivityQueryService {
     private static final TypeReference<List<FieldChange>> CHANGES = new TypeReference<>() {};
 
     private final AuditLogRepository logs;
+    private final ActivityAudienceProvider audience;
     private final JsonMapper json;
     private final int listLimit;
 
-    public ActivityQueryService(AuditLogRepository logs, JsonMapper json, AccessControlProperties properties) {
+    public ActivityQueryService(AuditLogRepository logs, ActivityAudienceProvider audience, JsonMapper json,
+            AccessControlProperties properties) {
         this.logs = logs;
+        this.audience = audience;
         this.json = json;
         this.listLimit = properties.audit().listLimit();
     }
 
     /**
      * The log, newest first, at or after {@code from} and before {@code to} when they are given, at most listLimit
-     * entries; nothing without activity.view. The app filters and pages it further itself.
+     * entries. With activity.view only through branches, the entries about their people (P-024); nothing without it.
+     * The app filters and pages it further itself.
      */
     public List<ActivityResponse> list(Actor actor, @Nullable Instant from, @Nullable Instant to) {
-        if (!actor.has(ACTIVITY_VIEW)) {
+        if (actor.has(ACTIVITY_VIEW)) {
+            return logs.findBetween(from, to, Limit.of(listLimit)).stream().map(this::toResponse).toList();
+        }
+        var people = audience.peopleFor(actor);
+        if (people.isEmpty()) {
             return List.of();
         }
-        return logs.findBetween(from, to, Limit.of(listLimit)).stream().map(this::toResponse).toList();
+        var targetIds = people.stream().map(UUID::toString).toList();
+        return logs.findBetweenAbout(targetIds, from, to, Limit.of(listLimit)).stream().map(this::toResponse).toList();
     }
 
     private ActivityResponse toResponse(AuditLog entry) {

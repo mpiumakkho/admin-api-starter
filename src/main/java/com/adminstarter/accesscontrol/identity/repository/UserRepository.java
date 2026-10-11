@@ -1,6 +1,7 @@
 package com.adminstarter.accesscontrol.identity.repository;
 
 import com.adminstarter.accesscontrol.identity.entity.User;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,4 +24,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     boolean emailTaken(String email);
 
     boolean existsByBranchId(UUID branchId);
+
+    @Query("select u.id from User u where u.branchId in :branchIds")
+    List<UUID> findIdsByBranchIdIn(Collection<UUID> branchIds);
 }

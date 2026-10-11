@@ -3,6 +3,7 @@ package com.adminstarter.accesscontrol.authorization;
 import com.adminstarter.accesscontrol.authorization.spi.PermissionCatalog;
 import com.adminstarter.accesscontrol.authorization.spi.PermissionDefinition;
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
@@ -24,6 +25,12 @@ public class CorePermissions implements PermissionCatalog {
     public static final String SETTINGS_MANAGE = "settings.manage";
     public static final String BRANCHES_VIEW = "branches.view";
     public static final String BRANCHES_MANAGE = "branches.manage";
+
+    /**
+     * The four that a role limited to a branch grants over the people who belong to that branch, so a branch manager
+     * looks after their branch's staff (P-024). The others come only from roles for the whole organization.
+     */
+    public static final Set<String> BRANCH_SCOPED = Set.of(USERS_VIEW, USERS_CREATE, USERS_EDIT, ACTIVITY_VIEW);
 
     @Override
     public List<PermissionDefinition> permissions() {

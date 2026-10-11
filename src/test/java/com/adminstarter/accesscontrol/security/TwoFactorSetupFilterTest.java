@@ -47,7 +47,7 @@ class TwoFactorSetupFilterTest {
     private static void signIn(boolean twoFactorSetupRequired) {
         var actor = new Actor(UUID.randomUUID(), UUID.randomUUID(), Set.of(UUID.randomUUID()), Set.of(), twoFactorSetupRequired);
         var token = Jwt.withTokenValue("token").header("alg", "RS256").subject(actor.userId().toString()).build();
-        SecurityContextHolder.getContext().setAuthentication(new ActorAuthentication(actor, token));
+        SecurityContextHolder.getContext().setAuthentication(new ActorAuthentication(actor, token, actor.permissions()));
     }
 
     /** Whether the request went on down the chain; held back, it is answered 403 two_factor_mandatory */

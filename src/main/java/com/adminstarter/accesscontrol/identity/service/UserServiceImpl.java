@@ -5,9 +5,11 @@ import com.adminstarter.accesscontrol.identity.dto.AccountSummary;
 import com.adminstarter.accesscontrol.identity.dto.UserResponse;
 import com.adminstarter.accesscontrol.identity.entity.UserStatus;
 import com.adminstarter.accesscontrol.identity.event.UserStatusChanged;
+import com.adminstarter.accesscontrol.identity.policy.BranchScopePolicy;
 import com.adminstarter.accesscontrol.identity.repository.UserRepository;
 import java.time.Clock;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -77,5 +79,12 @@ public class UserServiceImpl implements UserService {
     public UserResponse requireSecurityManageable(Actor actor, UUID userId) {
         var user = access.findSecurityManageable(actor, userId);
         return mapper.toResponse(user);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<UUID> peopleOfBranchesWith(Actor actor, String permission) {
+        var branches = BranchScopePolicy.branchesWith(actor, permission);
+        return branches.isEmpty() ? Set.of() : Set.copyOf(users.findIdsByBranchIdIn(branches));
     }
 }

@@ -1,18 +1,22 @@
 package com.adminstarter.accesscontrol.security;
 
 import com.adminstarter.accesscontrol.common.context.Actor;
+import java.util.Collection;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 
-/** A request with a valid access token: the principal is the Actor, the authorities its permission codes */
+/**
+ * A request with a valid access token: the principal is the Actor, the authorities the permission codes it may use
+ * somewhere (PermissionAuthenticationConverter)
+ */
 public class ActorAuthentication extends AbstractAuthenticationToken {
 
     private final Actor actor;
     private final Jwt token;
 
-    public ActorAuthentication(Actor actor, Jwt token) {
-        super(actor.permissions().stream().map(SimpleGrantedAuthority::new).toList());
+    public ActorAuthentication(Actor actor, Jwt token, Collection<String> authorities) {
+        super(authorities.stream().map(SimpleGrantedAuthority::new).toList());
         this.actor = actor;
         this.token = token;
         setAuthenticated(true);

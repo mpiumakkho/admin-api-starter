@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,17 +50,17 @@ public class RoleServiceImpl implements RoleService {
     }
 
     @Override
-    public RoleResponse requireAssignable(Actor actor, UUID roleId) {
+    public RoleResponse requireAssignable(Actor actor, UUID roleId, @Nullable UUID branchId) {
         var role = roles.findById(roleId).orElseThrow(NOT_FOUND::exception);
-        if (!GrantPolicy.holdsAll(actor.permissions(), role.getPermissions())) {
+        if (!GrantPolicy.holdsAll(actor.permissionsIn(branchId), role.getPermissions())) {
             throw FORBIDDEN.exception();
         }
         return mapper.toResponse(role);
     }
 
     @Override
-    public boolean canManageHolderOf(Actor actor, UUID roleId) {
-        return GrantPolicy.canManageRole(actor.permissions(), roles.findById(roleId).map(Role::getPermissions).orElse(Set.of()));
+    public boolean canManageHolderOf(Actor actor, UUID roleId, @Nullable UUID branchId) {
+        return GrantPolicy.canManageRole(actor.permissionsIn(branchId), roles.findById(roleId).map(Role::getPermissions).orElse(Set.of()));
     }
 
     @Override
