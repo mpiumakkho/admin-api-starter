@@ -98,9 +98,10 @@ def controllers() -> dict[tuple[str, str], tuple[str, str]]:
 def test_calls(endpoint_keys: set[tuple[str, str]]) -> dict[tuple[str, str], set[str]]:
     """(method, path) -> the test classes that call it, read from how ApiIntegrationTest and MockMvcTester are used"""
     calls: dict[tuple[str, str], set[str]] = {}
-    patterns = [
+    # Each pattern with the method when the call does not name it
+    patterns: list[tuple[re.Pattern[str], str | None]] = [
         # get("/api/users/" + id + "/sessions", browser)
-        (re.compile(r'\bget\(\s*"(/api[^"]*)"((?:\s*\+\s*[^,"]+?)?(?:\s*\+\s*"([^"]*)")?)\s*,'), lambda m: "GET"),
+        (re.compile(r'\bget\(\s*"(/api[^"]*)"((?:\s*\+\s*[^,"]+?)?(?:\s*\+\s*"([^"]*)")?)\s*,'), "GET"),
         # send(HttpMethod.PATCH, "/api/users/" + id, browser, body)
         (re.compile(r'\bsend\(\s*HttpMethod\.(\w+),\s*"(/api[^"]*)"((?:\s*\+\s*[^,"]+?)?(?:\s*\+\s*"([^"]*)")?)\s*,'), None),
         # mvc.post().uri("/api/auth/login")
@@ -120,7 +121,7 @@ def test_calls(endpoint_keys: set[tuple[str, str]]) -> dict[tuple[str, str], set
         for pattern, fixed in patterns:
             for m in pattern.finditer(text):
                 if fixed:
-                    method, prefix, tail, suffix = fixed(m), m.group(1), m.group(2), m.group(3)
+                    method, prefix, tail, suffix = fixed, m.group(1), m.group(2), m.group(3)
                 elif pattern.pattern.startswith(r"\bsend"):
                     method, prefix, tail, suffix = m.group(1), m.group(2), m.group(3), m.group(4)
                 else:
@@ -154,7 +155,8 @@ def permission_status(endpoint: Endpoint) -> str:
     return "✅" if all(permission in endpoint.authorize for permission in needed) else "⚠️"
 
 
-def render(api: Path, endpoints: list[Endpoint], extra: list[tuple[str, str]], codes: tuple[list[str], list[str]]) -> str:
+def render(endpoints: list[Endpoint], extra: list[tuple[tuple[str, str], str]], codes: tuple[list[str], list[str]]) -> str:
+    """extra: what the controllers answer and API.md does not list, as ((method, path), Controller.method)"""
     done = sum(1 for endpoint in endpoints if endpoint.handler)
     tested = sum(1 for endpoint in endpoints if endpoint.tests)
     contract_codes, server_codes = codes
@@ -208,7 +210,7 @@ def render(api: Path, endpoints: list[Endpoint], extra: list[tuple[str, str]], c
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").strip().partition("\n")[0])
     parser.add_argument("--api", type=Path, default=DEFAULT_API, help="path to API.md")
     parser.add_argument("--check", action="store_true", help="write nothing; exit 1 when an endpoint or error code is missing")
     args = parser.parse_args()
@@ -237,7 +239,7 @@ def main() -> int:
         return 1 if missing or missing_codes or wrong_permission else 0
 
     OUTPUT.parent.mkdir(exist_ok=True)
-    OUTPUT.write_text(render(args.api, endpoints, extra, codes), encoding="utf-8", newline="\n")
+    OUTPUT.write_text(render(endpoints, extra, codes), encoding="utf-8", newline="\n")
     print(f"wrote {OUTPUT.relative_to(REPO)}: {len(endpoints) - len(missing)}/{len(endpoints)} endpoints")
     return 0
 
