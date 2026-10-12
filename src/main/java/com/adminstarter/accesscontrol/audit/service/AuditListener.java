@@ -33,6 +33,10 @@ import com.adminstarter.accesscontrol.identity.event.UserPasswordReset;
 import com.adminstarter.accesscontrol.identity.event.UserInactiveSuspended;
 import com.adminstarter.accesscontrol.identity.event.UserStatusChanged;
 import com.adminstarter.accesscontrol.identity.event.UserUpdated;
+import com.adminstarter.accesscontrol.review.event.AccessReviewClosed;
+import com.adminstarter.accesscontrol.review.event.AccessReviewDecided;
+import com.adminstarter.accesscontrol.review.event.AccessReviewDeleted;
+import com.adminstarter.accesscontrol.review.event.AccessReviewStarted;
 import com.adminstarter.accesscontrol.settings.event.SettingsUpdated;
 import java.time.Clock;
 import java.time.Instant;
@@ -103,6 +107,7 @@ public class AuditListener {
         record(event.actorId(), "role_assignment.updated", event.fullName(), event.userId(), event.changes());
     }
 
+    /** No actor when an access review took it away as it closed (P-028) */
     @EventListener
     void on(RoleAssignmentRemoved event) {
         record(event.actorId(), "role_assignment.removed", event.fullName(), event.userId(), event.changes(), event.reason());
@@ -217,6 +222,28 @@ public class AuditListener {
     }
 
     @EventListener
+    void on(AccessReviewStarted event) {
+        record(event.actorId(), "access_review.started", event.name(), event.reviewId(), event.changes());
+    }
+
+    @EventListener
+    void on(AccessReviewDecided event) {
+        record(event.actorId(), "access_review.decided", event.name(), event.reviewId(), event.changes(), event.note());
+    }
+
+    /** No actor when the server closed it at its due date */
+    @EventListener
+    void on(AccessReviewClosed event) {
+        record(event.actorId(), "access_review.closed", event.name(), event.reviewId(), event.changes(), "");
+    }
+
+    /** No target id: the review is gone */
+    @EventListener
+    void on(AccessReviewDeleted event) {
+        record(event.actorId(), "access_review.deleted", event.name(), null, List.of());
+    }
+
+    @EventListener
     void on(SettingsUpdated event) {
         record(event.actorId(), "settings.updated", "Settings", null, event.changes());
     }
@@ -225,9 +252,9 @@ public class AuditListener {
         record(actorId, action, targetLabel, targetId, changes, "");
     }
 
-    /** With the reason the request gave; blank is none */
-    private void record(UUID actorId, String action, String targetLabel, @Nullable UUID targetId, List<FieldChange> changes,
-            String reason) {
+    /** With the reason the request gave; blank is none. No actor: the server did it by itself */
+    private void record(@Nullable UUID actorId, String action, String targetLabel, @Nullable UUID targetId,
+            List<FieldChange> changes, String reason) {
         record(actorId, action, targetLabel, targetId, changes, reason, clock.instant());
     }
 

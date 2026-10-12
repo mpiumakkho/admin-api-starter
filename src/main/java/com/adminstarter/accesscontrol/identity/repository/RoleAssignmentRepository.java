@@ -16,6 +16,8 @@ public interface RoleAssignmentRepository extends JpaRepository<RoleAssignment, 
 
     List<RoleAssignment> findAllByOrderByStartsAtAscIdAsc();
 
+    List<RoleAssignment> findByUserIdIn(Collection<UUID> userIds);
+
     /** Whether anyone holds the role now or will hold it later */
     @Query("select count(a) > 0 from RoleAssignment a where a.roleId = :roleId and (a.endsAt is null or a.endsAt > :now)")
     boolean heldNowOrLater(UUID roleId, Instant now);

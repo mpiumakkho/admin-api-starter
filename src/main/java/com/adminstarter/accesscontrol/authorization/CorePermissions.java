@@ -25,6 +25,8 @@ public class CorePermissions implements PermissionCatalog {
     public static final String SETTINGS_MANAGE = "settings.manage";
     public static final String BRANCHES_VIEW = "branches.view";
     public static final String BRANCHES_MANAGE = "branches.manage";
+    /** Starting, closing and deleting access reviews, and seeing all of them (P-028) */
+    public static final String REVIEWS_MANAGE = "reviews.manage";
 
     /**
      * The four that a role limited to a branch grants over the people who belong to that branch, so a branch manager
@@ -46,6 +48,7 @@ public class CorePermissions implements PermissionCatalog {
                 PermissionDefinition.of(SETTINGS_VIEW, "View settings"),
                 PermissionDefinition.of(SETTINGS_MANAGE, "Change settings"),
                 PermissionDefinition.of(BRANCHES_VIEW, "View branches"),
-                PermissionDefinition.of(BRANCHES_MANAGE, "Add and change branches"));
+                PermissionDefinition.of(BRANCHES_MANAGE, "Add and change branches"),
+                PermissionDefinition.of(REVIEWS_MANAGE, "Run access reviews"));
     }
 }
