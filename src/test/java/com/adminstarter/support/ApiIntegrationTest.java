@@ -2,10 +2,11 @@ package com.adminstarter.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 
 import com.adminstarter.accesscontrol.notification.service.NotificationService;
+import com.adminstarter.accesscontrol.notification.service.NotificationService.Recipient;
 import jakarta.servlet.http.Cookie;
 import java.net.URI;
 import java.time.Instant;
@@ -156,10 +157,15 @@ public abstract class ApiIntegrationTest {
         return signIn(email, password);
     }
 
+    /** An email to this address, in whichever language, for verifying what NotificationService was asked to send */
+    protected static Recipient to(String email) {
+        return argThat(recipient -> recipient != null && recipient.email().equals(email));
+    }
+
     /** The token in the last invitation emailed to this address */
     protected String invitationToken(String email) {
         var link = ArgumentCaptor.forClass(String.class);
-        verify(notifications, org.mockito.Mockito.atLeastOnce()).sendInvitation(eq(email), any(), link.capture(), any(Instant.class));
+        verify(notifications, org.mockito.Mockito.atLeastOnce()).sendInvitation(to(email), link.capture(), any(Instant.class));
         var query = URI.create(link.getValue()).getQuery();
         return query.substring(query.indexOf("token=") + "token=".length());
     }

@@ -149,7 +149,14 @@ public class UserLifecycleService {
             users.flush();
             return user;
         });
-        events.publishEvent(new UserUpdated(actor.userId(), id, user.getFullName(), before.diff(after)));
+        // A preference, as the theme: anyone who may change the person may change it, and the log leaves it out (P-029)
+        if (request.language() != null) {
+            user.chooseLanguage(request.language().orElse(null), clock.instant());
+        }
+        var changes = before.diff(after);
+        if (!changes.isEmpty()) {
+            events.publishEvent(new UserUpdated(actor.userId(), id, user.getFullName(), changes));
+        }
         if (statusChanged && after.status() == UserStatus.SUSPENDED) {
             events.publishEvent(new UserSuspended(id));
         }
@@ -257,6 +264,7 @@ public class UserLifecycleService {
                 Objects.requireNonNullElse(draft.phone(), ""), draft.department(),
                 Objects.requireNonNullElse(draft.avatar(), ""), status, clock.instant());
         draftUser.moveToBranch(draft.branchId(), clock.instant());
+        draftUser.chooseLanguage(draft.language(), clock.instant());
         var user = users.save(draftUser);
         credentialService.create(user.getId(), null);
         var changes = new ArrayList<FieldChange>();

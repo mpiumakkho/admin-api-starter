@@ -121,6 +121,7 @@ public class SettingsServiceImpl implements SettingsService {
                 : request.reasonsRequired().stream().distinct().toList();
         var reauthMinutes = Objects.requireNonNullElse(request.reauthMinutes(), current.getReauthMinutes());
         var suspendInactiveDays = Objects.requireNonNullElse(request.suspendInactiveDays(), current.getSuspendInactiveDays());
+        var defaultLanguage = Objects.requireNonNullElse(request.defaultLanguage(), current.getDefaultLanguage());
 
         // In the order of AdminSettings in models.ts, the two lists last, as items added and removed
         var changes = new ArrayList<FieldChange>();
@@ -135,6 +136,7 @@ public class SettingsServiceImpl implements SettingsService {
         FieldChange.diff("branchesEnabled", current.isBranchesEnabled(), branchesEnabled).ifPresent(changes::add);
         FieldChange.diff("reauthMinutes", current.getReauthMinutes(), reauthMinutes).ifPresent(changes::add);
         FieldChange.diff("suspendInactiveDays", current.getSuspendInactiveDays(), suspendInactiveDays).ifPresent(changes::add);
+        FieldChange.diff("defaultLanguage", current.getDefaultLanguage(), defaultLanguage).ifPresent(changes::add);
         FieldChange.listDiff("allowedDomains", current.getAllowedDomains(), domains).ifPresent(changes::add);
         FieldChange.listDiff("twoFactorRoleIds", strings(current.getTwoFactorRoleIds()), strings(twoFactorRoleIds))
                 .ifPresent(changes::add);
@@ -147,6 +149,7 @@ public class SettingsServiceImpl implements SettingsService {
         current.changeReasonsRequired(reasonsRequired, now);
         current.changeReauthMinutes(reauthMinutes, now);
         current.changeSuspendInactiveDays(suspendInactiveDays, now);
+        current.changeDefaultLanguage(defaultLanguage, now);
         if (!changes.isEmpty()) {
             events.publishEvent(new SettingsUpdated(actor.userId(), List.copyOf(changes)));
         }
@@ -188,6 +191,7 @@ public class SettingsServiceImpl implements SettingsService {
         return new SettingsResponse(settings.getDefaultRoleId(), settings.getAllowedDomains(), settings.getInviteExpiryDays(),
                 settings.getSessionTimeoutMinutes(), settings.getTwoFactorRoleIds(), settings.getPasswordMinLength(),
                 settings.getPasswordHistory(), settings.getActivityRetentionDays(), settings.isBranchesEnabled(),
-                settings.getReasonsRequired(), settings.getReauthMinutes(), settings.getSuspendInactiveDays());
+                settings.getReasonsRequired(), settings.getReauthMinutes(), settings.getSuspendInactiveDays(),
+                settings.getDefaultLanguage());
     }
 }

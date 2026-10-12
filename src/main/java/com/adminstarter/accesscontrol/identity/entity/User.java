@@ -35,6 +35,8 @@ public class User {
     private Instant updatedAt;
     /** Null until the first sign-in */
     private @Nullable Instant lastActiveAt;
+    /** The language of their emails, "th" or "en": the one they last used the app in; null for the settings' one (P-029) */
+    private @Nullable String language;
 
     protected User() {}
 
@@ -64,6 +66,12 @@ public class User {
 
     public void changeStatus(UserStatus status, Instant now) {
         this.status = status;
+        this.updatedAt = now;
+    }
+
+    /** The language of their emails; null leaves it to the settings */
+    public void chooseLanguage(@Nullable String language, Instant now) {
+        this.language = language;
         this.updatedAt = now;
     }
 
@@ -115,6 +123,10 @@ public class User {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public @Nullable String getLanguage() {
+        return language;
     }
 
     public @Nullable Instant getLastActiveAt() {

@@ -9,6 +9,6 @@ import java.util.UUID;
 public record AccessReviewStarted(UUID actorId, UUID reviewId, String name, List<FieldChange> changes, Instant dueAt,
         List<Reviewer> reviewers) {
 
-    /** An active person who may decide some of it, and how many roles */
-    public record Reviewer(String email, String firstName, int assignments) {}
+    /** An active person who may decide some of it, and how many roles; notification finds their address and language */
+    public record Reviewer(UUID userId, int assignments) {}
 }

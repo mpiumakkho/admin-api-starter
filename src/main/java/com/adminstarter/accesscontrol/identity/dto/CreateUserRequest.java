@@ -10,8 +10,8 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * UserDraft: everything the server does not assign. Phone, photo and branch may be left out; without roles, the new user
- * gets the settings' default role for good.
+ * UserDraft: everything the server does not assign. Phone, photo, branch and language may be left out; without roles, the
+ * new user gets the settings' default role for good, and without a language, their emails are in the settings' one.
  */
 public record CreateUserRequest(
         @NotBlank @Size(max = 100) String firstName,
@@ -22,11 +22,14 @@ public record CreateUserRequest(
         @Nullable UUID branchId,
         @Nullable @Size(max = 50) List<@NotNull @Valid RoleGrantRequest> roles,
         @NotNull @Pattern(regexp = STATUSES) String status,
-        @Nullable @Size(max = AVATAR_MAX) String avatar) {
+        @Nullable @Size(max = AVATAR_MAX) String avatar,
+        @Nullable @Pattern(regexp = LANGUAGES) String language) {
 
     /** The check admin-ng-starter makes: something@something.something, surrounding spaces allowed */
     public static final String EMAIL = "^\\s*[^\\s@]+@[^\\s@]+\\.[^\\s@]+\\s*$";
     public static final String STATUSES = "active|invited|suspended";
+    /** The languages emails are written in (P-029) */
+    public static final String LANGUAGES = "th|en";
     /** A photo is a data URL; this leaves room for about 1.5 MB of image */
     public static final int AVATAR_MAX = 2_000_000;
 }

@@ -16,4 +16,5 @@ public record SettingsResponse(
         boolean branchesEnabled,
         List<String> reasonsRequired,
         int reauthMinutes,
-        int suspendInactiveDays) {}
+        int suspendInactiveDays,
+        String defaultLanguage) {}

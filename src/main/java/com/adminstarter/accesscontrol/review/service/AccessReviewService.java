@@ -306,7 +306,7 @@ public class AccessReviewService {
         var reviewers = new ArrayList<AccessReviewStarted.Reviewer>();
         counts.forEach((userId, count) -> users.findAccount(userId)
                 .filter(account -> account.active() && count > 0)
-                .ifPresent(account -> reviewers.add(new AccessReviewStarted.Reviewer(account.email(), account.firstName(), count))));
+                .ifPresent(account -> reviewers.add(new AccessReviewStarted.Reviewer(userId, count))));
         return reviewers;
     }
 

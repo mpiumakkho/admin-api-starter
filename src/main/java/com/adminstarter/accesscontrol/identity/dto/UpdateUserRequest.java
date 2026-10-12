@@ -9,9 +9,10 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * UserChanges: a field left out stays as it is; roles change through role assignments. {@code branchId} must tell the
- * two apart, as UpdateRoleAssignmentRequest's endsAt does: left out, {@link #branchId()} is null; {@code "branchId": null}
- * (no branch) is an empty Optional.
+ * UserChanges: a field left out stays as it is; roles change through role assignments. {@code branchId} and
+ * {@code language} must tell the two apart, as UpdateRoleAssignmentRequest's endsAt does: left out, {@link #branchId()}
+ * is null; {@code "branchId": null} (no branch) is an empty Optional. Likewise {@code "language": null} gives the
+ * settings' language back.
  */
 public final class UpdateUserRequest {
 
@@ -47,10 +48,20 @@ public final class UpdateUserRequest {
     @Size(max = CreateUserRequest.AVATAR_MAX)
     private @Nullable String avatar;
 
+    private boolean languageSent;
+    @Pattern(regexp = CreateUserRequest.LANGUAGES)
+    private @Nullable String language;
+
     @JsonSetter("branchId")
     void readBranchId(@Nullable UUID value) {
         branchIdSent = true;
         branchId = value;
+    }
+
+    @JsonSetter("language")
+    void readLanguage(@Nullable String value) {
+        languageSent = true;
+        language = value;
     }
 
     public @Nullable String firstName() {
@@ -84,5 +95,10 @@ public final class UpdateUserRequest {
 
     public @Nullable String avatar() {
         return avatar;
+    }
+
+    /** Null when left out; empty for the settings' language; or "th" or "en" (P-029) */
+    public @Nullable Optional<String> language() {
+        return languageSent ? Optional.ofNullable(language) : null;
     }
 }
