@@ -35,4 +35,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("select u.id from User u where u.branchId in :branchIds")
     List<UUID> findIdsByBranchIdIn(Collection<UUID> branchIds);
+
+    List<User> findByBranchId(UUID branchId);
 }

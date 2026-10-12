@@ -17,7 +17,7 @@ class ModuleBoundaryTest {
 
     static final String ROOT = "com.adminstarter.accesscontrol";
     static final List<String> MODULES =
-            List.of("identity", "authentication", "authorization", "audit", "notification", "settings", "branch", "liveupdate");
+            List.of("identity", "authentication", "authorization", "audit", "notification", "settings", "branch", "liveupdate", "review");
     /** What other modules must not touch: everything but service, dto, event and spi */
     static final List<String> PRIVATE_LAYERS = List.of("repository", "entity", "controller", "policy");
 
