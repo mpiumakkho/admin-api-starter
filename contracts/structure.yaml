@@ -37,6 +37,8 @@ backend:
       layers: [controller, service, repository, entity, dto, event, spi]
     liveupdate:                      # P-007: the event stream, kept in memory
       layers: [controller, service]
+    review:                          # P-028: access reviews; asks identity through RoleReviewSupport
+      layers: [controller, service, repository, entity, dto, event]
 
   foundation_non_module_packages:
     config:
