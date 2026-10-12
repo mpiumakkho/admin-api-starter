@@ -71,6 +71,8 @@ backend:
       - db/migration/access_control/V1__access_control_schema.sql
       - templates/mail/invite.html
       - templates/mail/password-reset.html
+      - templates/mail/notice.html
+      - i18n/mail.properties           # P-029: the text of the emails; mail_th.properties beside it
     required_folders:
       - db/migration/app
     forbidden_folders: [mockup, mock, fonts, reports, static]

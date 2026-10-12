@@ -86,7 +86,7 @@ admin-api-starter/
 | `settings/` | controller, service, repository, entity, dto, event | `SettingsService`, `dto/*`, `event/*` | `AdminSettings` รวมกฎของบัญชี (`twoFactorRoleIds`, `passwordMinLength`, `passwordHistory`, `activityRetentionDays`), `branchesEnabled`, `reasonsRequired` และ `reauthMinutes`; `SettingsService.requireReason` ให้ module อื่นตรวจเหตุผล (P-021) และ `reauthWindow` (cache) ให้ security คิด `Actor.recentSignIn` (P-023); `SettingsController` (`/api/settings`); `RoleEventListener` เอา role ที่ถูกลบออกจาก `twoFactorRoleIds` |
 | `branch/` | controller, service, repository, entity, dto, event, spi | `BranchService`, `spi/*`, `dto/*`, `event/*` | สาขา (P-020): `Branch` (code ไม่ซ้ำแบบไม่สนตัวพิมพ์, เปิด/ปิด); `BranchController` (`/api/branches`); `BranchService.requireOpen` ให้ identity ตรวจสาขาก่อนรับคนหรือมอบ role; `spi/BranchMemberProvider` ให้ identity ตอบว่าสาขายังมีคนอยู่ไหม |
 | `audit/` | controller, service, repository, entity, dto, event, spi | `event/ActivityRecorded`, `spi/*` | ฟัง event ของทุก module แล้วเขียน `audit_logs` ใน transaction เดียวกัน พร้อมเหตุผลที่ event พกมา (`reason`, P-021); `ActivityController` (`/api/activity?from=&to=`); `AuditRetentionJob` ลบ activity ที่เก่ากว่าที่ `ActivityRetentionProvider` บอกทุกคืน; คนที่มี `activity.view` แค่ระดับสาขาเห็นเฉพาะ entry ของคนที่ `ActivityAudienceProvider` บอก (P-024) |
-| `notification/` | service | `NotificationService` | อีเมลเชิญและรีเซ็ตรหัสผ่าน อีเมลแจ้งเตือนเรื่องบัญชีจาก `SecurityNoticeListener` (P-027) และอีเมลบอกผู้ทบทวนเมื่อเปิดรอบทบทวนสิทธิ์จาก `AccessReviewNoticeListener` (P-028) (Thymeleaf, `@Async`, หลัง commit) |
+| `notification/` | service | `NotificationService` | อีเมลเชิญและรีเซ็ตรหัสผ่าน อีเมลแจ้งเตือนเรื่องบัญชีจาก `SecurityNoticeListener` (P-027) และอีเมลบอกผู้ทบทวนเมื่อเปิดรอบทบทวนสิทธิ์จาก `AccessReviewNoticeListener` (P-028) (Thymeleaf, `@Async`, หลัง commit) เป็นภาษาของผู้รับที่ `RecipientResolver` หาให้ ข้อความจาก `i18n/mail*.properties` (P-029) |
 | `review/` | controller, service, repository, entity, dto, event | `event/*` | ทบทวนสิทธิ์ (P-028): `AccessReview` กับ `AccessReviewItem` (การมอบตามที่เป็นตอนเปิดรอบ เก็บเป็นข้อความ ไม่มี FK); `AccessReviewService` (เปิด ตัดสิน ปิด ลบ โดยถาม identity ผ่าน `RoleReviewSupport`); `AccessReviewJob` ปิดรอบที่ครบกำหนดทุกชั่วโมง; `AccessReviewController` (`/api/access-reviews`) |
 | `liveupdate/` | controller, service | — | SSE `/api/events` ส่ง `NOTIFY admin_changes` ใน transaction ของการเปลี่ยนแปลง แล้ว `ChangeNotificationListener` ของทุก instance ได้ยินและส่งต่อให้ stream โดยรวมการเปลี่ยนแปลงที่เกิดติด ๆ กันเป็นข้อความเดียว (P-015) |
 
@@ -115,7 +115,9 @@ Entity ทุกตัวเป็น JPA entity แบบ JavaBean: field เ�
 | `db/migration/access_control/V3__previous_passwords.sql` | ประวัติรหัสผ่าน (P-017) |
 | `db/migration/access_control/V13__access_reviews.sql` | รอบทบทวนสิทธิ์ ผู้ทบทวนที่ระบุชื่อ และการมอบที่แต่ละรอบครอบคลุม (P-028) |
 | `db/migration/app/` | migration ของ business (schema `app`) |
-| `templates/mail/invite.html`, `password-reset.html` | อีเมล |
+| `templates/mail/invite.html`, `password-reset.html`, `notice.html` | อีเมล ข้อความมาจาก `#{...}` |
+| `i18n/mail.properties`, `i18n/mail_th.properties` | ข้อความของอีเมลภาษาอังกฤษและไทย (P-029); `MailMessagesTest` ตรวจว่ามี key ตรงกัน |
+| `db/migration/access_control/V14__email_language.sql` | ภาษาของอีเมลของแต่ละคน และภาษาเริ่มต้นในการตั้งค่า (P-029) |
 
 ## `src/test/java/com/adminstarter/`
 
