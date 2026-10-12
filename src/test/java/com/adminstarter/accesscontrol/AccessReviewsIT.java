@@ -1,7 +1,6 @@
 package com.adminstarter.accesscontrol;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -78,8 +77,8 @@ class AccessReviewsIT extends ApiIntegrationTest {
         var theirs = items(manager, id);
         assertThat(theirs.stream().map(item -> item.get("userId").asString())).containsExactlyInAnyOrder(member, another);
         assertThat(theirs).allSatisfy(item -> assertThat(item.get("canDecide").asBoolean()).isTrue());
-        verify(notifications).sendNotice(eq(manager.user().get("email").asString()), any(), eq("Access review: Staff check"),
-                argThat(lines -> lines.get(0).contains("2 role assignments")));
+        verify(notifications).sendNotice(to(manager.user().get("email").asString()), eq("access-review"),
+                argThat(values -> values.get(0).equals("Staff check") && values.get(1).equals(2)));
 
         var all = items(admin, id);
         assertRefused(decide(manager, id, itemOf(all, outsider), "keep", null), HttpStatus.FORBIDDEN, "forbidden");

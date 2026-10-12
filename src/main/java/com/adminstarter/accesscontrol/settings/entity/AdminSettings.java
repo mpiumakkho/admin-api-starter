@@ -19,6 +19,7 @@ public class AdminSettings {
     public static final List<String> DEFAULT_REASONS_REQUIRED = List.of("status", "delete");
     /** How long a new installation lets a sign-in or a confirmed password last for the risky changes */
     public static final int DEFAULT_REAUTH_MINUTES = 10;
+    public static final String DEFAULT_LANGUAGE = "th";
 
     @Id
     private short id;
@@ -58,6 +59,9 @@ public class AdminSettings {
     /** Accounts nobody used for this many days are suspended every night (P-027); 0 leaves them */
     private int suspendInactiveDays;
 
+    /** The language of emails to people whose own is not known yet, "th" or "en" (P-029) */
+    private String defaultLanguage = DEFAULT_LANGUAGE;
+
     private Instant updatedAt;
 
     protected AdminSettings() {}
@@ -96,6 +100,11 @@ public class AdminSettings {
 
     public void changeReauthMinutes(int reauthMinutes, Instant now) {
         this.reauthMinutes = reauthMinutes;
+        this.updatedAt = now;
+    }
+
+    public void changeDefaultLanguage(String defaultLanguage, Instant now) {
+        this.defaultLanguage = defaultLanguage;
         this.updatedAt = now;
     }
 
@@ -165,5 +174,9 @@ public class AdminSettings {
 
     public int getSuspendInactiveDays() {
         return suspendInactiveDays;
+    }
+
+    public String getDefaultLanguage() {
+        return defaultLanguage;
     }
 }

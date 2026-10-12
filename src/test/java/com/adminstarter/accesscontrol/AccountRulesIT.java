@@ -2,7 +2,6 @@ package com.adminstarter.accesscontrol;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 
@@ -223,7 +222,7 @@ class AccountRulesIT extends ApiIntegrationTest {
     /** The token in the last password reset emailed to this address */
     private String resetToken(String email) {
         var link = ArgumentCaptor.forClass(String.class);
-        verify(notifications, atLeastOnce()).sendPasswordReset(eq(email), any(), link.capture(), any(Instant.class));
+        verify(notifications, atLeastOnce()).sendPasswordReset(to(email), link.capture(), any(Instant.class));
         var query = URI.create(link.getValue()).getQuery();
         return query.substring(query.indexOf("token=") + "token=".length());
     }

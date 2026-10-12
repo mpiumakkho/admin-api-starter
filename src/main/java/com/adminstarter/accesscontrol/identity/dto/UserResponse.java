@@ -19,4 +19,5 @@ public record UserResponse(
         String avatar,
         Instant createdAt,
         @Nullable Instant lastActiveAt,
-        boolean twoFactor) {}
+        boolean twoFactor,
+        @Nullable String language) {}

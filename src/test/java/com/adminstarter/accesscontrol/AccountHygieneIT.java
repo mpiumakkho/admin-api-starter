@@ -1,19 +1,18 @@
 package com.adminstarter.accesscontrol;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.endsWith;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.adminstarter.accesscontrol.identity.service.InactiveAccountJob;
+import com.adminstarter.accesscontrol.notification.service.NotificationService.Text;
 import com.adminstarter.support.ApiIntegrationTest;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -63,7 +62,7 @@ class AccountHygieneIT extends ApiIntegrationTest {
         assertThat(entry.get("actorId").isNull()).isTrue();
         assertThat(entry.get("changes").valueStream().map(change -> change.get("field").asString() + "=" + change.get("to").asString()))
                 .contains("status=suspended", "inactiveDays=90");
-        verify(notifications).sendNotice(eq(email(idle)), any(), endsWith("account was suspended"), anyList());
+        verify(notifications).sendNotice(to(email(idle)), eq("inactive-suspended"), eq(List.of(90)));
     }
 
     @Test
@@ -90,31 +89,31 @@ class AccountHygieneIT extends ApiIntegrationTest {
         var user = newUser("Viewer", PASSWORD);
         var email = email(user);
         // The first password, from the invitation, says nothing
-        verify(notifications, never()).sendNotice(eq(email), any(), endsWith("password was changed"), anyList());
+        verify(notifications, never()).sendNotice(to(email), eq("password-changed"), anyList());
 
         // The same browser again says nothing; another one does
         signIn(email, PASSWORD);
-        verify(notifications, never()).sendNotice(eq(email), any(), startsWith("New sign-in"), anyList());
+        verify(notifications, never()).sendNotice(to(email), eq("new-device"), anyList());
         assertThat(mvc.post().uri("/api/auth/login").header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(Map.of("email", email, "password", PASSWORD, "remember", false))).exchange())
                 .hasStatusOk();
-        verify(notifications).sendNotice(eq(email), any(), startsWith("New sign-in"),
-                argThat(lines -> lines.get(1).contains("Firefox on Linux")));
+        verify(notifications).sendNotice(to(email), eq("new-device"),
+                argThat(values -> values.get(0).equals("Firefox") && values.get(1).equals("Linux")));
 
         assertThat(send(HttpMethod.POST, "/api/role-assignments", admin,
                 Map.of("userId", user.userId().toString(), "roleId", roleId(admin, "Manager").toString()))).hasStatusOk();
-        verify(notifications).sendNotice(eq(email), any(), startsWith("You have a new role"),
-                argThat(lines -> lines.get(0).contains("Manager for the whole organization, for good")));
+        verify(notifications).sendNotice(to(email), eq("role-given"), eq(List.of("Manager",
+                Text.of("mail.role-given.scope.organization"), "", Text.of("mail.role-given.for-good"))));
 
         assertThat(send(HttpMethod.POST, "/api/me/password", user,
                 Map.of("currentPassword", PASSWORD, "newPassword", "another-pass-2"))).hasStatus(HttpStatus.NO_CONTENT);
-        verify(notifications, atLeastOnce()).sendNotice(eq(email), any(), endsWith("password was changed"), anyList());
+        verify(notifications, atLeastOnce()).sendNotice(to(email), eq("password-changed"), anyList());
 
         // To the old address
         var changed = uniqueEmail();
         assertThat(send(HttpMethod.PATCH, "/api/users/" + user.userId(), admin(), Map.of("email", changed))).hasStatusOk();
-        verify(notifications).sendNotice(eq(email), any(), endsWith("email was changed"), argThat(lines -> lines.get(0).contains(changed)));
+        verify(notifications).sendNotice(to(email), eq("email-changed"), eq(List.of(email, changed)));
     }
 
     private String status(Browser user) {

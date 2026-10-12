@@ -77,11 +77,13 @@ public record AccessControlProperties(
     /**
      * @param baseUrl where the dashboard is, for the links in emails
      * @param resetLinkTtl how long a password reset link works; invitations follow the settings page
+     * @param timeZone the time zone of the dates and times in emails, such as "Asia/Bangkok" (P-029)
      */
     public record Mail(
             @DefaultValue("no-reply@localhost") String from,
             @DefaultValue("http://localhost:4200") String baseUrl,
-            @DefaultValue("1h") Duration resetLinkTtl) {}
+            @DefaultValue("1h") Duration resetLinkTtl,
+            @DefaultValue("Asia/Bangkok") String timeZone) {}
 
     /**
      * The key for secrets kept in the database, such as two-step sign-in secrets: AES-256-GCM with a key derived from

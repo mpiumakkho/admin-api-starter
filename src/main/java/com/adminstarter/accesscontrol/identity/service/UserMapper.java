@@ -35,7 +35,8 @@ public class UserMapper {
     public UserResponse toResponse(User user, boolean twoFactor, List<RoleAssignment> roles) {
         return new UserResponse(user.getId(), user.getFirstName(), user.getLastName(), user.getEmail(), user.getPhone(),
                 user.getDepartment(), user.getBranchId(), roles.stream().map(RoleAssignmentResolver::toResponse).toList(),
-                user.getStatus().value(), user.getAvatar(), user.getCreatedAt(), user.getLastActiveAt(), twoFactor);
+                user.getStatus().value(), user.getAvatar(), user.getCreatedAt(), user.getLastActiveAt(), twoFactor,
+                user.getLanguage());
     }
 
     public AccountSummary toAccount(User user) {

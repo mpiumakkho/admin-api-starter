@@ -25,6 +25,13 @@ spring:
     # Mailpit from docker/docker-compose.yml; read the mail at http://localhost:8025
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
+  # The text of the emails, in English (i18n/mail.properties) and Thai (i18n/mail_th.properties) (P-029). Every message
+  # goes through MessageFormat, so {0} and '' mean the same everywhere; a language without a file of its own gets English,
+  # whatever the server's own locale.
+  messages:
+    basename: i18n/mail
+    always-use-message-format: true
+    fallback-to-system-locale: false
 
 server:
   port: 8080
