@@ -18,6 +18,7 @@ permissions:
   - { code: "settings.manage", description: "Change settings" }
   - { code: "branches.view",   description: "View branches" }
   - { code: "branches.manage", description: "Add and change branches" }
+  - { code: "reviews.manage",  description: "Run access reviews" }
 
 # Created on the first start. Built-in ones (is_system) take this name, description and these permissions again on
 # every start (P-019); the others belong to whoever manages roles once created.
@@ -78,6 +79,12 @@ endpoints:
   - { method: POST,   path: "/api/branches",                      permission: branches.manage }
   - { method: PATCH,  path: "/api/branches/{id}",                 permission: branches.manage }
   - { method: DELETE, path: "/api/branches/{id}",                 permission: branches.manage, note: "branch_in_use while anyone is in it" }
+  - { method: GET,    path: "/api/access-reviews",                permission: authenticated, note: "P-028: all with reviews.manage, otherwise the ones they take part in" }
+  - { method: POST,   path: "/api/access-reviews",                permission: reviews.manage }
+  - { method: GET,    path: "/api/access-reviews/{id}/items",     permission: authenticated, note: "all with reviews.manage or when named; otherwise the ones they may decide" }
+  - { method: POST,   path: "/api/access-reviews/{id}/decisions", permission: authenticated, note: "the people who look after each person, and those it names" }
+  - { method: POST,   path: "/api/access-reviews/{id}/close",     permission: reviews.manage, note: "reauth_required (P-023)" }
+  - { method: DELETE, path: "/api/access-reviews/{id}",           permission: reviews.manage, note: "review_closed once closed" }
   - { method: GET,    path: "/api/activity",                      permission: authenticated, note: "empty without activity.view; optional from, to (ISO 8601)" }
   - { method: GET,    path: "/api/settings",                      permission: authenticated, two_factor_setup: true }
   - { method: PATCH,  path: "/api/settings",                      permission: settings.manage }
