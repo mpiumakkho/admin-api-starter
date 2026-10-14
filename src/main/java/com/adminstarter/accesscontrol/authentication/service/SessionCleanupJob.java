@@ -1,5 +1,6 @@
 package com.adminstarter.accesscontrol.authentication.service;
 
+import com.adminstarter.accesscontrol.AccessControlProperties;
 import com.adminstarter.accesscontrol.authentication.repository.ActionTokenRepository;
 import com.adminstarter.accesscontrol.authentication.repository.UserSessionRepository;
 import java.time.Clock;
@@ -30,7 +31,7 @@ public class SessionCleanupJob {
         this.clock = clock;
     }
 
-    @Scheduled(cron = "0 15 3 * * *")
+    @Scheduled(cron = "0 15 3 * * *", zone = AccessControlProperties.TIME_ZONE)
     @Transactional
     public void run() {
         var before = clock.instant().minus(KEEP);

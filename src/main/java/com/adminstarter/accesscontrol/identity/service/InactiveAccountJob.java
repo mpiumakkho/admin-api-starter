@@ -1,5 +1,6 @@
 package com.adminstarter.accesscontrol.identity.service;
 
+import com.adminstarter.accesscontrol.AccessControlProperties;
 import com.adminstarter.accesscontrol.identity.entity.UserStatus;
 import com.adminstarter.accesscontrol.identity.event.UserInactiveSuspended;
 import com.adminstarter.accesscontrol.identity.event.UserSuspended;
@@ -40,7 +41,7 @@ public class InactiveAccountJob {
         this.clock = clock;
     }
 
-    @Scheduled(cron = "0 30 2 * * *")
+    @Scheduled(cron = "0 30 2 * * *", zone = AccessControlProperties.TIME_ZONE)
     @Transactional
     @CacheEvict(cacheNames = UserServiceImpl.ACCOUNTS_CACHE, allEntries = true)
     public void run() {

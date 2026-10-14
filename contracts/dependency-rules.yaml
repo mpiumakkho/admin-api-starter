@@ -44,3 +44,8 @@ backend:
       description: No hasRole( anywhere; every hasAuthority('…') names a code a PermissionCatalog declares.
       test: SecurityRuleTest
     - { id: N1, name: naming, test: NamingRuleTest, see: contracts/naming.yaml }
+    - id: J1
+      name: cron-jobs-run-in-the-organization-time-zone
+      description: Every @Scheduled(cron = …) declares zone = AccessControlProperties.TIME_ZONE, so a nightly job runs at
+        night in access-control.time-zone, not in the server's time zone (UTC in a container). This project's rule (P-030).
+      test: SchedulingRuleTest

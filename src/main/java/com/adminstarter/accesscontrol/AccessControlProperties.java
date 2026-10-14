@@ -12,11 +12,14 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *
  * @param issuer the JWT {@code iss} claim
  * @param productName the name in emails and in authenticator apps next to the codes
+ * @param timeZone the organization's time zone, such as "Asia/Bangkok": the times in emails and the hour the nightly
+ *     jobs run at (P-030)
  */
 @ConfigurationProperties("access-control")
 public record AccessControlProperties(
         @DefaultValue("admin-api-starter") String issuer,
         @DefaultValue("Admin") String productName,
+        @DefaultValue("Asia/Bangkok") String timeZone,
         @DefaultValue Token token,
         @DefaultValue Cookie cookie,
         @DefaultValue Lockout lockout,
@@ -27,6 +30,12 @@ public record AccessControlProperties(
         @DefaultValue Mail mail,
         @DefaultValue Encryption encryption,
         @DefaultValue Bootstrap bootstrap) {
+
+    /**
+     * For {@code @Scheduled(cron = …, zone = TIME_ZONE)}: a job runs at the hour its cron says in {@link #timeZone()},
+     * not in the server's time zone, which is UTC in a container (P-030)
+     */
+    public static final String TIME_ZONE = "${access-control.time-zone:Asia/Bangkok}";
 
     /**
      * @param accessTtl how long an access token works
@@ -77,13 +86,11 @@ public record AccessControlProperties(
     /**
      * @param baseUrl where the dashboard is, for the links in emails
      * @param resetLinkTtl how long a password reset link works; invitations follow the settings page
-     * @param timeZone the time zone of the dates and times in emails, such as "Asia/Bangkok" (P-029)
      */
     public record Mail(
             @DefaultValue("no-reply@localhost") String from,
             @DefaultValue("http://localhost:4200") String baseUrl,
-            @DefaultValue("1h") Duration resetLinkTtl,
-            @DefaultValue("Asia/Bangkok") String timeZone) {}
+            @DefaultValue("1h") Duration resetLinkTtl) {}
 
     /**
      * The key for secrets kept in the database, such as two-step sign-in secrets: AES-256-GCM with a key derived from

@@ -1,5 +1,6 @@
 package com.adminstarter.accesscontrol.review.service;
 
+import com.adminstarter.accesscontrol.AccessControlProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,7 +22,7 @@ public class AccessReviewJob {
         this.reviews = reviews;
     }
 
-    @Scheduled(cron = "0 5 * * * *")
+    @Scheduled(cron = "0 5 * * * *", zone = AccessControlProperties.TIME_ZONE)
     public void run() {
         var closed = reviews.closeDue();
         if (closed > 0) {
