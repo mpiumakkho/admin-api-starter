@@ -7,7 +7,7 @@
 ## ADR ของ template ที่ใช้กับโปรเจกต์นี้
 
 | ADR | เรื่อง | สถานะในโปรเจกต์นี้ |
-|---|---|---|
+| --- | --- | --- |
 | 0001 | Authentication ทำเองบน Spring Security + JWT (ไม่ใช้ Keycloak) | ใช้ |
 | 0002 | Permission model: Role → Permission, โค้ดเช็ค permission ไม่เช็ค role | ใช้ แต่รูปแบบ code เปลี่ยนตาม P-002 และหนึ่ง user มีได้หลาย role ตาม P-019 |
 | 0003 | Token: access JWT 15 นาที + refresh cookie แบบ opaque หมุนทุกครั้ง, stateless, permission resolve จาก DB + cache | ใช้ พร้อมส่วนเพิ่มใน P-004 |
@@ -58,6 +58,7 @@
 
 ## P-006 รหัสผ่านขั้นต่ำ 8 ตัว ไม่มี username และไม่มี must-change-password
 
+- Status: ความยาวขั้นต่ำถูกเปลี่ยนโดย P-017 (ย้ายไปอยู่ในการตั้งค่า `passwordMinLength` และไม่มี `access-control.password.min-length` แล้ว) ส่วนการเข้าสู่ระบบด้วย email และการไม่มี must-change-password ยังใช้
 - Context: frontend ตรวจรหัสผ่านขั้นต่ำ 8 ตัว (`NEW_PASSWORD_LENGTH`) เข้าสู่ระบบด้วย email และไม่มีหน้าบังคับเปลี่ยนรหัส
 - Decision: `access-control.password.min-length: 8` เข้าสู่ระบบด้วย email (ไม่สนตัวพิมพ์เล็กใหญ่ และ unique ด้วย `lower(email)`) ผู้ดูแลไม่เคยรู้รหัสผ่านของใคร: คนที่ถูกเชิญตั้งรหัสเองจากลิงก์ ส่วนการ reset จะส่งลิงก์ให้ตั้งรหัสใหม่ (ดู P-017)
 - Consequences: ถ้าจะเพิ่มความยาวขั้นต่ำ ให้แก้ทั้ง property และ `NEW_PASSWORD_LENGTH` (ดู P-017)
@@ -114,7 +115,6 @@
 - Context: P-007 เก็บ SSE stream ไว้ใน memory ของแต่ละ instance ถ้ารันหลายตัว การเปลี่ยนแปลงบนตัวหนึ่งจะไม่ไปถึง dashboard ที่ต่ออยู่กับตัวอื่น
 - Decision: ทุกครั้งที่มี `ActivityRecorded` liveupdate จะสั่ง `NOTIFY admin_changes` ใน transaction ของการเปลี่ยนแปลงนั้น PostgreSQL ส่งออกไปตอน commit, ทิ้งไปถ้า rollback และรวม `NOTIFY` ที่ซ้ำกันใน transaction เดียวเป็นอันเดียว ส่วน `ChangeNotificationListener` ของทุก instance (รวมถึงตัวที่เกิดการเปลี่ยนแปลง) `LISTEN` อยู่บน connection ของตัวเองใน virtual thread แล้วส่ง `data: changed` ไปยัง stream ที่เปิดอยู่ ถ้า connection หลุดก็ต่อใหม่ โดยรอนานขึ้นเรื่อย ๆ และเมื่อต่อได้แล้ว จะส่ง `changed` หนึ่งครั้งเผื่อมีการเปลี่ยนแปลงที่พลาดไปช่วงนั้น ไม่ต้องใช้ Redis หรือ broker เพิ่ม
 - Consequences: แต่ละ instance ใช้ connection ใน pool ถาวรหนึ่งเส้น และ driver ของ PostgreSQL กลายเป็น dependency ตอน compile (ใช้ `PGConnection`) ถ้าจะรันหลาย instance ทุกตัวต้องใช้ `access-control.token.keys` และ `access-control.encryption` ชุดเดียวกัน ไม่อย่างนั้น token จากตัวหนึ่งจะใช้กับอีกตัวไม่ได้ ส่วน rate limit กับ cache ของสิทธิ์ยังนับแยกต่อ instance (cache มี TTL 60 วินาที)
-
 
 ## P-016 Role ที่ต้องใช้ two-step sign-in (ต่อจาก P-008)
 
@@ -263,6 +263,7 @@
 
 ## P-029 อีเมลเป็นภาษาไทยหรืออังกฤษตามภาษาที่แต่ละคนใช้ในแอป: `users.language` และ `defaultLanguage` ในการตั้งค่า
 
+- Status: ใช้ ยกเว้น property ของเขตเวลา ซึ่งเปลี่ยนจาก `access-control.mail.time-zone` เป็น `access-control.time-zone` ตาม P-030
 - Context: อีเมลทุกฉบับ (เชิญ, รีเซ็ตรหัสผ่าน, แจ้งเตือนเรื่องบัญชีของ P-027 และทบทวนสิทธิ์ของ P-028) เขียนเป็นภาษาอังกฤษไว้ในโค้ดและ template และบอกเวลาเป็น UTC ขณะที่แอปใช้ได้ทั้งไทยและอังกฤษ องค์กรไทยส่วนใหญ่อยากได้อีเมลภาษาไทยที่บอกเวลาไทยและปี พ.ศ. ส่วนพนักงานต่างชาติอยากได้ภาษาอังกฤษ Google และ Microsoft ส่งอีเมลตามภาษาที่ผู้ใช้ตั้งไว้ API.md เพิ่ม `User.language`, `defaultLanguage` ในการตั้งค่า และหัวข้อ "The language of emails"
 - Decision:
   - `users.language` (`V14__email_language.sql`: `th`, `en` หรือ null) คือภาษาที่คนนั้นใช้แอปล่าสุด แอปบันทึกให้เองผ่าน `PATCH /users/:id` เมื่อเข้าสู่ระบบหรือสลับภาษา คนนั้นแก้ของตัวเองได้โดยไม่ต้องมีสิทธิ์ (แบบชื่อและเบอร์โทร) และคนที่มี `users.edit` ตั้งให้คนที่ตัวเองจัดการได้ รวมถึงตอนเพิ่มผู้ใช้ใหม่ ซึ่งอีเมลเชิญจะใช้ภาษานั้น การเปลี่ยนภาษาไม่ลง activity log เพราะเป็นความชอบส่วนตัวแบบธีม ไม่เกี่ยวกับการเข้าถึง และ `PATCH /users/:id` ที่ไม่ได้เปลี่ยนสิ่งที่ log ติดตามจะไม่เขียน `user.updated` อีกต่อไป
@@ -270,3 +271,12 @@
   - ข้อความอยู่ใน `i18n/mail.properties` (อังกฤษ) และ `i18n/mail_th.properties` ผ่าน `MessageSource` ของ Spring (`spring.messages.*`: format ทุกข้อความด้วย MessageFormat และไม่หันไปใช้ locale ของเครื่อง server) template ทั้งสามใช้ `#{...}` `NotificationService` จึงรับผู้รับพร้อมภาษา (`Recipient`) ชนิดของอีเมล (`kind`) และค่าที่ใส่ในข้อความ แทนข้อความที่เขียนเสร็จแล้ว แล้ว `MailNotificationService` เขียนเป็นภาษาของผู้รับ ช่องทางอื่นอย่าง LINE ใช้ข้อความชุดเดียวกันได้ `notification/service/RecipientResolver` หาภาษาของแต่ละคนจาก `UserService` และ `SettingsService` event `AccessReviewStarted.Reviewer` จึงพกแค่ id ของผู้ทบทวนกับจำนวน
   - เวลาในอีเมลเป็นเขตเวลาของ `access-control.mail.time-zone` (ค่าเริ่มต้น `Asia/Bangkok`) พร้อมบอกว่าเป็น GMT เท่าไร ภาษาไทยใช้ปี พ.ศ. (`ThaiBuddhistChronology`) และชื่อเดือนแบบย่อภาษาไทย
 - Consequences: เพิ่มภาษาที่สามได้ด้วยไฟล์ `mail_<code>.properties` ไฟล์แปลของแอป และขยาย check constraint กับ `@Pattern` ของ `language` เทสของ server ไม่ตรวจข้อความในอีเมลแล้ว แต่ตรวจชนิด ค่า และภาษาของผู้รับ ส่วน `MailNotificationServiceTest` ตรวจอีเมลที่เขียนออกมาทั้งสองภาษา และ `MailMessagesTest` ตรวจว่าไฟล์ทั้งสองภาษามี key ตรงกัน
+
+## P-030 เขตเวลาขององค์กร `access-control.time-zone`: ใช้ทั้งเวลาในอีเมลและเวลาที่งาน cron รัน (เปลี่ยน P-029 บางส่วน)
+
+- Context: `@Scheduled(cron = …)` ใช้เขตเวลาของ JVM ซึ่งใน container (`eclipse-temurin` ของ `docker/Dockerfile`) คือ UTC งานที่ตั้งใจให้รันตอนกลางคืนตามเวลาไทยจึงไปรันตอนสาย เช่น ระงับบัญชีที่ไม่ได้ใช้ (`InactiveAccountJob` 02:30) ไปรัน 09:30, ล้าง session (`SessionCleanupJob` 03:15) ไปรัน 10:15 และลบ activity เก่า (`AuditRetentionJob` 03:30) ไปรัน 10:30 ทั้งหมดอยู่ในเวลางาน ส่วน `access-control.mail.time-zone` ของ P-029 ใช้กับเวลาในอีเมลเท่านั้น
+- Decision:
+  - `access-control.time-zone` (ค่าเริ่มต้น `Asia/Bangkok`, ตั้งผ่าน env `AC_TIME_ZONE`) คือเขตเวลาขององค์กร ใช้ทั้งเวลาในอีเมลและเวลาที่งาน cron รัน แทน `access-control.mail.time-zone`
+  - งาน cron ทุกตัวต้องประกาศ `zone = AccessControlProperties.TIME_ZONE` (`${access-control.time-zone:Asia/Bangkok}`) กฎ J1 ใน `contracts/dependency-rules.yaml` (`SchedulingRuleTest`) ทำให้ build ไม่ผ่านถ้ามีงาน cron ตัวไหนไม่ได้ประกาศ ส่วนงานที่รันตามช่วงเวลา (`fixedDelay`, `fixedRate`) ไม่ขึ้นกับเขตเวลา
+  - ไม่เปลี่ยนเขตเวลาของ JVM เพราะเวลาในฐานข้อมูลเป็น `timestamptz` และ log มี offset กำกับอยู่แล้ว
+- Consequences: เปลี่ยน `AC_TIME_ZONE` แล้วทั้งเวลาในอีเมลและชั่วโมงที่งานกลางคืนรันจะเปลี่ยนตาม เขตเวลาที่มี daylight saving อาจทำให้งานที่ตั้งไว้ในชั่วโมงที่เปลี่ยนเวลาถูกข้ามหรือรันซ้ำในคืนนั้น (`Asia/Bangkok` ไม่มี daylight saving) เขตเวลานี้กำหนดแค่ว่างานรันตอนไหน ส่วนระยะเวลาที่นับ (เช่น ไม่ได้ใช้ 90 วัน หรือเก็บ activity 365 วัน) ยังนับจาก `Instant` เหมือนเดิม
