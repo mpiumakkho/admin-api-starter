@@ -6,6 +6,8 @@ Backend ของ [admin-ng-starter](../admin-ng-starter) สำหรับจ�
 - **Stack:** Java 25, Spring Boot 4.1, Spring Security 7 (OAuth2 resource server + Nimbus), Spring Data JPA (Hibernate 7), PostgreSQL 17, Flyway, Caffeine, Bucket4j, Argon2id, Thymeleaf (อีเมล), ArchUnit, Testcontainers
 - **Template:** access-control (`accessbase-docs`, schema_version 1) org `adminstarter` ส่วนที่ต่างจาก template มี ADR อยู่ใน [docs/02-DECISIONS.md](docs/02-DECISIONS.md)
 - **โครงสร้าง:** [trees/BACKEND.md](trees/BACKEND.md)
+- **ภาพรวม:** [docs/01-OVERVIEW.md](docs/01-OVERVIEW.md) โมดูลต่อกันอย่างไร คำขอหรือการเปลี่ยนแปลงข้อมูลหนึ่งครั้งผ่านอะไรบ้าง และข้อมูลอยู่ที่ไหน
+- **ดูแลระบบหลังนำขึ้นใช้งานจริง:** [docs/OPERATIONS.md](docs/OPERATIONS.md) งานที่ระบบรันเองตามเวลา คีย์ การสำรองข้อมูล การตรวจสถานะ และ log ที่ควรเฝ้า
 
 ## สิ่งที่ต้องมี
 
@@ -21,7 +23,7 @@ ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD=change-me-123 ./mvnw spring-boot:run
 
 - API อยู่ที่ `http://localhost:8080/api`
 - การ start ครั้งแรกจะสร้าง schema, permission 13 ตัว, role 4 ตัว (Administrator, Manager, Support, Viewer) และผู้ดูแลคนแรก `admin@example.com` โดยใช้รหัสจาก `ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD` ถ้าไม่ได้ตั้งไว้ ระบบจะสุ่มรหัสให้และพิมพ์ลง log ครั้งเดียว
-- อีเมลเชิญและอีเมลรีเซ็ตรหัสผ่านทั้งหมดไปอยู่ใน Mailpit: http://localhost:8025
+- อีเมลทุกฉบับ (เชิญ, รีเซ็ตรหัสผ่าน, แจ้งเตือนเรื่องบัญชี และทบทวนสิทธิ์) ไปอยู่ใน Mailpit: http://localhost:8025
 
 ### ใช้กับ admin-ng-starter
 
@@ -51,7 +53,7 @@ provideUserManagement({ api: HttpAdminApi, apiUrl: '/api', liveUpdates: true }),
 | บทบาทที่ห้ามถือร่วมกัน | กฎ (`/api/role-conflicts`) ระบุ role ที่คนเดียวห้ามถือพร้อมกัน การมอบ role ที่ทับช่วงเวลากับ role อื่นในกฎเดียวกันถูกปฏิเสธด้วย `role_conflict` ทุกขอบเขต ทั้งมอบรายคน, batch, ผู้ใช้ใหม่ และการเลื่อนวันสิ้นสุด ส่วนคนที่ถืออยู่ก่อนสร้างกฎ หน้า roles แสดงเป็นรายการที่ต้องแก้ (P-022) |
 | ผู้ดูแลระดับสาขา | role ที่จำกัดเฉพาะสาขาให้ `users.view`, `users.create`, `users.edit` และ `activity.view` กับคนที่สังกัดสาขานั้น ผู้จัดการสาขาจึงดู เพิ่ม แก้ไข และมอบ role ที่จำกัดสาขาให้คนในสาขาตัวเองได้ และเห็น activity ของคนในสาขา กฎ "ห้ามให้สิทธิ์เกินที่ตัวเองมี" นับตามขอบเขตของแต่ละ role ส่วนการลบผู้ใช้ role การตั้งค่า และสาขา ยังต้องมี role ทั้งองค์กร (P-024) |
 | ยืนยันตัวตนซ้ำก่อนทำสิ่งเสี่ยง | การมอบ แก้ หรือถอด role (รวมผู้ใช้ใหม่), การแก้สิทธิ์หรือลบ role, การลบผู้ใช้, การ reset รหัสผ่านหรือ 2FA และจบ session ของคนอื่น, การปิดรอบทบทวนสิทธิ์ และการแก้การตั้งค่า ต้องเข้าสู่ระบบหรือยืนยันรหัสผ่านมาไม่เกิน `reauthMinutes` (ค่าเริ่มต้น 10 นาที, 0 = ไม่ถาม) ไม่อย่างนั้นตอบ 403 `reauth_required` แล้วยืนยันได้ที่ `POST /api/me/reauthenticate` (P-023) |
-| อีเมลภาษาไทยหรืออังกฤษ | อีเมลทุกฉบับเป็นภาษาที่ผู้รับใช้แอปล่าสุด (`users.language` ซึ่งแอปบันทึกให้เอง) หรือ `defaultLanguage` ในหน้าตั้งค่าถ้ายังไม่รู้ (ค่าเริ่มต้นเป็นไทย) เวลาในอีเมลเป็นเขตเวลาของ `access-control.mail.time-zone` (ค่าเริ่มต้น `Asia/Bangkok`) และภาษาไทยใช้ปี พ.ศ. ข้อความอยู่ใน `src/main/resources/i18n/mail.properties` และ `mail_th.properties` (P-029) |
+| อีเมลภาษาไทยหรืออังกฤษ | อีเมลทุกฉบับเป็นภาษาที่ผู้รับใช้แอปล่าสุด (`users.language` ซึ่งแอปบันทึกให้เอง) หรือ `defaultLanguage` ในหน้าตั้งค่าถ้ายังไม่รู้ (ค่าเริ่มต้นเป็นไทย) เวลาในอีเมลเป็นเขตเวลาขององค์กร `access-control.time-zone` (ค่าเริ่มต้น `Asia/Bangkok` ซึ่งงานตอนกลางคืนของ server ก็รันตามเขตเวลานี้) และภาษาไทยใช้ปี พ.ศ. ข้อความอยู่ใน `src/main/resources/i18n/mail.properties` และ `mail_th.properties` (P-029, P-030) |
 | ทบทวนสิทธิ์ (access review) | คนที่มี `reviews.manage` เปิดรอบทบทวนของ role หนึ่งหรือทุก role ของคนในสาขาหนึ่งหรือทุกคน (`/api/access-reviews`) ผู้ดูแลของแต่ละคน (รวมผู้ดูแลสาขา) และผู้ทบทวนที่ระบุชื่อตัดสินคงไว้หรือถอดทีละการมอบ ระบบส่งอีเมลบอกผู้ทบทวนว่ามีกี่รายการ ปิดรอบเมื่อครบกำหนด (`AccessReviewJob` ทุกชั่วโมง) หรือปิดเองก่อน แล้วถอด role ที่ตัดสินว่าถอด ส่วนที่ไม่มีใครตัดสินคงไว้และระบุว่าไม่ได้ทบทวน รอบที่ปิดแล้วเป็นหลักฐานให้ผู้ตรวจสอบ แก้หรือลบไม่ได้ (`review_closed`) (P-028) |
 | เหตุผลของการเปลี่ยนแปลงสำคัญ | การระงับหรือเปิดใช้บัญชี ลบผู้ใช้ ถอดบทบาท reset รหัสผ่านหรือ 2FA และจบ session ของคนอื่น รับ `reason` ได้ ระบบเก็บไว้ใน activity log (`Activity.reason`) ส่วน `reasonsRequired` ในหน้าตั้งค่าเลือกว่าข้อไหนต้องมี ไม่มีจะตอบ `reason_required` (ค่าเริ่มต้นคือการระงับกับการลบ) (P-021) |
 
@@ -65,6 +67,7 @@ provideUserManagement({ api: HttpAdminApi, apiUrl: '/api', liveUpdates: true }),
 | `AC_ALLOWED_ORIGINS` | origin ของ dashboard (ใช้ทั้ง CORS และตรวจ `Origin` ของ endpoint ที่ใช้ cookie) |
 | `AC_DASHBOARD_URL`, `AC_MAIL_FROM`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` | ลิงก์ในอีเมลและ SMTP |
 | `ACCESS_CONTROL_BOOTSTRAP_ADMIN_EMAIL`, `ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD` | ผู้ดูแลคนแรก (ใช้เฉพาะตอนที่ยังไม่มีผู้ใช้เลย) |
+| `AC_TIME_ZONE` | เขตเวลาขององค์กร ไม่ตั้งก็ได้ (ค่าเริ่มต้น `Asia/Bangkok`) ใช้กับเวลาในอีเมลและชั่วโมงที่งานตอนกลางคืนรัน (P-030) |
 
 ค่าอื่น ๆ (อายุ token, lockout, rate limit, จำนวน activity สูงสุดที่ตอบ) อยู่ใน `AccessControlProperties` ส่วนกฎของบัญชี (ความยาวและประวัติรหัสผ่าน, role ที่ต้องใช้ two-step sign-in, ระยะเก็บ activity) ตั้งในหน้าตั้งค่า (`PATCH /api/settings`) ไม่ใช่ config (P-016–P-018)
 
@@ -79,7 +82,8 @@ provideUserManagement({ api: HttpAdminApi, apiUrl: '/api', liveUpdates: true }),
 
 ## รันหลาย instance
 
-ทำได้เลย เพราะ session, refresh token และ activity อยู่ใน PostgreSQL ส่วน live update ส่งต่อกันผ่าน `LISTEN/NOTIFY` (P-015) มีเงื่อนไขอยู่สองข้อ:
+ทำได้เลย เพราะ session, refresh token และ activity อยู่ใน PostgreSQL ส่วน live update ส่งต่อกันผ่าน `LISTEN/NOTIFY` (P-015) มีเงื่อนไขอยู่สามข้อ:
 
 - ทุก instance ต้องใช้ `AC_JWT_*` และ `AC_ENCRYPTION_*` ชุดเดียวกัน
 - rate limit กับ cache ของสิทธิ์ (60 วินาที) นับแยกต่อ instance
+- งานที่ระบบรันเองตามเวลาจะรันบนทุก instance ทุกงานรันซ้ำได้โดยไม่มีผล ยกเว้นการระงับบัญชีที่ไม่ได้ใช้ ซึ่งยังบันทึกประวัติและส่งอีเมลซ้ำ ดู [docs/OPERATIONS.md](docs/OPERATIONS.md#หลายอินสแตนซ์)

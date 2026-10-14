@@ -11,5 +11,7 @@ node_modules/
 
 # Personal notes, not part of the project; the project's own documents in docs/ are listed below
 /docs/*
+!/docs/01-OVERVIEW.md
 !/docs/02-DECISIONS.md
+!/docs/OPERATIONS.md
 !/docs/API-COVERAGE.md
