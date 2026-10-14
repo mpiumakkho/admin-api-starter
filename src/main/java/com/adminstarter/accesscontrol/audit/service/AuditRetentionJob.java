@@ -1,5 +1,6 @@
 package com.adminstarter.accesscontrol.audit.service;
 
+import com.adminstarter.accesscontrol.AccessControlProperties;
 import com.adminstarter.accesscontrol.audit.repository.AuditLogRepository;
 import com.adminstarter.accesscontrol.audit.spi.ActivityRetentionProvider;
 import java.time.Clock;
@@ -27,7 +28,7 @@ public class AuditRetentionJob {
     }
 
     /** Asks for the retention each time, so a change on the settings page counts from the next night */
-    @Scheduled(cron = "0 30 3 * * *")
+    @Scheduled(cron = "0 30 3 * * *", zone = AccessControlProperties.TIME_ZONE)
     @Transactional
     public void run() {
         var days = retention.activityRetentionDays();

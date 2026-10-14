@@ -47,6 +47,8 @@ management:
 access-control:
   issuer: admin-api-starter
   product-name: Admin
+  # The organization's time zone: the times in emails and the hour the nightly jobs run at (P-030)
+  time-zone: ${AC_TIME_ZONE:Asia/Bangkok}
   # No keys: one is made at startup (tokens stop working on restart). See tools/gen-keys.sh.
   cookie:
     name: ac_rt

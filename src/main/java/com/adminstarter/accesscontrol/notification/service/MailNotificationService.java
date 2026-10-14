@@ -42,7 +42,7 @@ public class MailNotificationService implements NotificationService {
     @Autowired
     public MailNotificationService(JavaMailSender mail, ITemplateEngine templates, MessageSource messages,
             AccessControlProperties properties) {
-        this(mail, templates, messages, properties.mail().from(), properties.productName(), ZoneId.of(properties.mail().timeZone()));
+        this(mail, templates, messages, properties.mail().from(), properties.productName(), ZoneId.of(properties.timeZone()));
     }
 
     MailNotificationService(JavaMailSender mail, ITemplateEngine templates, MessageSource messages, String from,
