@@ -86,6 +86,7 @@ backend:
       - ForbiddenPackageTest.java
       - SecurityRuleTest.java
       - TransactionRuleTest.java
+      - SchedulingRuleTest.java
 
   repo_root_required:
     - src/main/java/com/adminstarter/Application.java
@@ -96,7 +97,9 @@ backend:
     - CLAUDE.md
     - UPGRADING.md
     - .gitignore
+    - docs/01-OVERVIEW.md
     - docs/02-DECISIONS.md
+    - docs/OPERATIONS.md
     - docs/API-COVERAGE.md
     - trees/BACKEND.md
     - docker/docker-compose.yml

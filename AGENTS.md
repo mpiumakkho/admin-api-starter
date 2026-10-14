@@ -1,10 +1,10 @@
 # AGENTS.md — instructions for AI agents working in this repository
 
-Read this first. Details live in `docs/02-DECISIONS.md`, `trees/BACKEND.md` and `contracts/`.
+Read this first. How the modules fit together is in `docs/01-OVERVIEW.md`; details live in `docs/02-DECISIONS.md`, `trees/BACKEND.md` and `contracts/`. Running it in production: `docs/OPERATIONS.md`.
 
 ## What this repository is
 
-`admin-api-starter` is the backend of `../admin-ng-starter`: user management (users, roles, sign-in with JWT and two-step sign-in, signed-in devices, activity log, settings, live updates). It was set up from the **access-control** template (Spring Boot 4.1, Java 25, modular monolith). The HTTP contract is `../admin-ng-starter/src/app/user-management/API.md`; the Angular side depends on it exactly.
+`admin-api-starter` is the backend of `../admin-ng-starter`: user management (users, roles given for a time or for good, branches, sign-in with JWT and two-step sign-in, signed-in devices, activity log, access reviews, settings, emails in Thai or English, live updates). It was set up from the **access-control** template (Spring Boot 4.1, Java 25, modular monolith). The HTTP contract is `../admin-ng-starter/src/app/user-management/API.md`; the Angular side depends on it exactly.
 
 Architecture motto: **Design like microservices, build like modular monolith.**
 

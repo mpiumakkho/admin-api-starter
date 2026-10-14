@@ -12,7 +12,9 @@ admin-api-starter/
 ├── mvnw, mvnw.cmd, .mvn/
 ├── README.md  AGENTS.md  CLAUDE.md  UPGRADING.md
 ├── .gitignore  .editorconfig
+├── docs/01-OVERVIEW.md      # ภาพรวม: โมดูลต่อกันอย่างไร คำขอและการเปลี่ยนแปลงข้อมูลหนึ่งครั้งผ่านอะไรบ้าง ข้อมูลอยู่ที่ไหน
 ├── docs/02-DECISIONS.md     # ADR ของ template ที่ใช้ + ADR ของโปรเจกต์ (P-xxx)
+├── docs/OPERATIONS.md       # ดูแลระบบหลังนำขึ้นใช้งานจริง: งานตามเวลา คีย์ การสำรองข้อมูล การตรวจสถานะ log ที่ควรเฝ้า
 ├── docs/API-COVERAGE.md     # endpoint ของ API.md ที่ server นี้ทำแล้ว สิทธิ์ และ test ที่เรียก (สร้างด้วย tools/api-coverage.py)
 ├── trees/BACKEND.md         # ไฟล์นี้
 ├── contracts/*.yaml         # structure, profile, dependency rules, naming, permissions
@@ -38,7 +40,7 @@ admin-api-starter/
 
 | Path | Purpose |
 |---|---|
-| `AccessControlProperties.java` | ค่า config ทั้งหมดใต้ `access-control.*` พร้อม default ตาม API.md |
+| `AccessControlProperties.java` | ค่า config ทั้งหมดใต้ `access-control.*` พร้อม default ตาม API.md และ `TIME_ZONE` ที่งาน cron ทุกตัวใส่เป็น `zone` (P-030) |
 | `package-info.java` | `@NullMarked`: ทุก package มี `package-info.java` ของตัวเอง |
 
 ### `config/` — wiring เท่านั้น ไม่มี logic
@@ -48,7 +50,7 @@ admin-api-starter/
 | `SecurityConfig.java` | `SecurityFilterChain`: `/api/auth/**` เปิด, `/api/**` ต้องมี access token, ที่เหลือปิด; CORS; `PasswordEncoder` (Argon2id); ใส่ `RequestContextFilter`, `RateLimitFilter` และ `TwoFactorSetupFilter`; bean `ActivityAudienceProvider` จาก `UserService` (P-024) |
 | `JwtConfig.java` | `JwtEncoder` / `JwtDecoder` (Nimbus) จาก `JwtKeyProvider` |
 | `CacheConfig.java` | Caffeine cache แบบ transaction-aware: `accounts`, `role-permissions`, `two-factor-roles`, `reauth-window`, `idle-timeout` |
-| `AsyncConfig.java` | `@EnableAsync` (อีเมล), `@EnableScheduling` (งานกลางคืน, ping SSE); bean `ActivityRetentionProvider` จาก `SettingsService` (P-018) |
+| `AsyncConfig.java` | `@EnableAsync` (อีเมล), `@EnableScheduling` (งานกลางคืนตามเขตเวลา `access-control.time-zone`, ping SSE); bean `ActivityRetentionProvider` จาก `SettingsService` (P-018) |
 | `ClockConfig.java` | `Clock` สำหรับทุก timestamp |
 | `JacksonConfig.java` | request body แบบเข้มงวด (กฎข้อ 5) |
 | `EncryptionConfig.java` | `TextEncryptor` (AES-256-GCM) สำหรับ secret ที่เก็บใน DB ถ้าไม่มี key แอปจะไม่ start (P-014) |
@@ -113,17 +115,26 @@ Entity ทุกตัวเป็น JPA entity แบบ JavaBean: field เ�
 | `db/migration/access_control/V1__access_control_schema.sql` | ตารางทั้งหมดของ foundation |
 | `db/migration/access_control/V2__settings_account_rules.sql` | กฎของบัญชีใน `admin_settings` พร้อม default และ check constraint (P-016–P-018) |
 | `db/migration/access_control/V3__previous_passwords.sql` | ประวัติรหัสผ่าน (P-017) |
+| `db/migration/access_control/V4__role_assignments.sql` | หลาย role ต่อคน การมอบแต่ละครั้งมีวันเริ่มและวันสิ้นสุด แทน `users.role_id` (P-019) |
+| `db/migration/access_control/V5__branches.sql` | สาขา คนสังกัดสาขา และการมอบ role เฉพาะสาขา (P-020) |
+| `db/migration/access_control/V6__reasons.sql` | `audit_logs.reason` เหตุผลของการเปลี่ยนแปลงสำคัญ (P-021) |
+| `db/migration/access_control/V7__role_conflicts.sql` | บทบาทที่ห้ามถือร่วมกัน (P-022) |
+| `db/migration/access_control/V8__reauthentication.sql` | เวลาที่แต่ละ session ยืนยันตัวตนล่าสุด (P-023) |
+| `db/migration/access_control/V9__activity_target_index.sql` | index ของ `audit_logs.target_id` ให้ผู้ดูแลสาขาอ่าน activity ของคนในสาขา (P-024) |
+| `db/migration/access_control/V10__recovery_codes.sql` | รหัสสำรองของ two-step sign-in (P-025) |
+| `db/migration/access_control/V11__activity_retention_minimum.sql` | เก็บ activity อย่างน้อย 90 วัน (P-026) |
+| `db/migration/access_control/V12__account_hygiene.sql` | ระงับบัญชีที่ไม่ได้ใช้ และ session ที่ไม่ได้ใช้งาน (P-027) |
 | `db/migration/access_control/V13__access_reviews.sql` | รอบทบทวนสิทธิ์ ผู้ทบทวนที่ระบุชื่อ และการมอบที่แต่ละรอบครอบคลุม (P-028) |
+| `db/migration/access_control/V14__email_language.sql` | ภาษาของอีเมลของแต่ละคน และภาษาเริ่มต้นในการตั้งค่า (P-029) |
 | `db/migration/app/` | migration ของ business (schema `app`) |
 | `templates/mail/invite.html`, `password-reset.html`, `notice.html` | อีเมล ข้อความมาจาก `#{...}` |
 | `i18n/mail.properties`, `i18n/mail_th.properties` | ข้อความของอีเมลภาษาอังกฤษและไทย (P-029); `MailMessagesTest` ตรวจว่ามี key ตรงกัน |
-| `db/migration/access_control/V14__email_language.sql` | ภาษาของอีเมลของแต่ละคน และภาษาเริ่มต้นในการตั้งค่า (P-029) |
 
 ## `src/test/java/com/adminstarter/`
 
 | Path | Purpose |
 |---|---|
-| `architecture/*Test.java` | ArchUnit: ModuleBoundary, LayerRule, NamingRule, ForbiddenPackage, SecurityRule, TransactionRule |
+| `architecture/*Test.java` | ArchUnit: ModuleBoundary, LayerRule, NamingRule, ForbiddenPackage, SecurityRule, TransactionRule, SchedulingRule (J1: งาน cron รันตามเขตเวลาขององค์กร) |
 | `accesscontrol/<module>/policy/*Test.java`, `service/*Test.java` | unit test |
-| `accesscontrol/AuthenticationFlowIT.java`, `AccessRulesIT.java`, `AccountRulesIT.java`, `LiveUpdateIT.java` | ทั้งระบบผ่าน HTTP กับ PostgreSQL จริง (Testcontainers); `AccountRulesIT` คือกฎของบัญชีในหน้าตั้งค่า |
+| `accesscontrol/*IT.java` | ทั้งระบบผ่าน HTTP กับ PostgreSQL จริง (Testcontainers) หนึ่งไฟล์ต่อหนึ่งหัวข้อของ API.md: `AuthenticationFlowIT`, `AccessRulesIT` ("Rules the server must check"), `AccountRulesIT` (กฎของบัญชีในหน้าตั้งค่า), `RoleAssignmentsIT`, `BranchesIT`, `ReasonsIT`, `RoleConflictsIT`, `ReauthenticationIT`, `BranchAdministratorsIT`, `RecoveryCodesIT`, `FailedSignInsIT`, `AccountHygieneIT`, `AccessReviewsIT`, `EmailLanguageIT` และ `LiveUpdateIT` (หลาย instance ผ่าน `LISTEN/NOTIFY`) |
 | `support/ApiIntegrationTest.java`, `support/PostgresContainerSupport.java` | โครงสำหรับ IT |
