@@ -39,8 +39,9 @@ public record AccessControlProperties(
 
     /**
      * @param accessTtl how long an access token works
-     * @param refreshTtl how long a session lasts without a refresh, when not remembered
-     * @param rememberTtl how long a remembered session lasts without a refresh
+     * @param refreshTtl how long a session lasts from its sign-in, when not remembered, however often it refreshes; 12
+     *     hours, as NIST SP 800-63B asks of AAL2 (P-037)
+     * @param rememberTtl how long a remembered session lasts from its sign-in, however often it refreshes
      * @param reuseGrace how long a replaced refresh token still gets an access token, for two tabs refreshing at once;
      *     after that, using it ends the session as stolen
      * @param keys RS256 key pairs in PEM, newest last; tokens are signed with the last and checked against all.

@@ -18,7 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class SettingsInitializer implements ApplicationRunner {
 
     private static final int INVITE_EXPIRY_DAYS = 7;
-    private static final int SESSION_TIMEOUT_MINUTES = 0;
+    /** Signed out after half an hour without activity, as NIST SP 800-63B asks of AAL2 (P-037) */
+    private static final int SESSION_TIMEOUT_MINUTES = 30;
     private static final int PASSWORD_MIN_LENGTH = 8;
     private static final int PASSWORD_HISTORY = 0;
     private static final int ACTIVITY_RETENTION_DAYS = 730;

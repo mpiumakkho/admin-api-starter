@@ -143,7 +143,8 @@ public class LoginService {
             throw UNAUTHENTICATED.exception();
         }
         token.replace(now);
-        session.extend(now.plus(lifetime(session.isRemember())), now);
+        // The session's end stays where its sign-in put it; the new token works no longer (P-037)
+        session.seen(now);
         users.recordActivity(account.id());
         return answer(account, session, newRefreshToken(session, now));
     }
@@ -202,15 +203,16 @@ public class LoginService {
 
     private String newRefreshToken(UserSession session, Instant now) {
         var value = tokens.newToken();
-        var expiresAt = now.plus(lifetime(session.isRemember()));
-        refreshTokens.save(new RefreshToken(session.getId(), tokens.hash(value), now, expiresAt));
+        refreshTokens.save(new RefreshToken(session.getId(), tokens.hash(value), now, session.getExpiresAt()));
         return value;
     }
 
     private SignIn answer(AccountSummary account, UserSession session, @Nullable String refreshToken) {
         var access = jwt.issue(account.id(), session.getId());
         var body = new TokenResponse(access.value(), access.expiresIn(), users.get(account.id()));
-        return new SignIn(body, refreshToken, session.isRemember() ? ttl.rememberTtl() : null);
+        // A remembered cookie lasts as long as what is left of its session
+        var cookieMaxAge = session.isRemember() ? Duration.between(clock.instant(), session.getExpiresAt()) : null;
+        return new SignIn(body, refreshToken, cookieMaxAge);
     }
 
     private Duration lifetime(boolean remember) {

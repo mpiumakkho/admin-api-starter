@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import com.adminstarter.accesscontrol.identity.service.InactiveAccountJob;
 import com.adminstarter.accesscontrol.notification.service.NotificationService.Text;
 import com.adminstarter.support.ApiIntegrationTest;
+import java.sql.Timestamp;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -79,8 +80,38 @@ class AccountHygieneIT extends ApiIntegrationTest {
             lastSeenAgo(other, 20);
             assertThat(refresh(other.cookie())).hasStatus(HttpStatus.UNAUTHORIZED);
         } finally {
-            assertThat(send(HttpMethod.PATCH, "/api/settings", admin(), Map.of("sessionTimeoutMinutes", 0))).hasStatusOk();
+            assertThat(send(HttpMethod.PATCH, "/api/settings", admin(), Map.of("sessionTimeoutMinutes", 30))).hasStatusOk();
         }
+    }
+
+    @Test
+    void a_session_ends_its_lifetime_after_sign_in_however_often_it_refreshes() {
+        var user = newUser("Viewer", PASSWORD);
+        var session = sessionId(user);
+        // As if it signed in 11 hours 50 minutes ago and kept refreshing: ten minutes left of its 12 hours
+        jdbc.update("update access_control.user_sessions set created_at = created_at - interval '11 hours 50 minutes', "
+                + "expires_at = expires_at - interval '11 hours 50 minutes' where id = ?", session);
+        jdbc.update("update access_control.refresh_tokens set expires_at = expires_at - interval '11 hours 50 minutes' "
+                + "where session_id = ?", session);
+        var ends = jdbc.queryForObject("select expires_at from access_control.user_sessions where id = ?", Timestamp.class, session);
+
+        var refreshed = refresh(user.cookie());
+        assertThat(refreshed).hasStatusOk();
+        // Refreshing gave it no more time, nor its new cookie
+        assertThat(jdbc.queryForObject("select expires_at from access_control.user_sessions where id = ?", Timestamp.class, session))
+                .isEqualTo(ends);
+        assertThat(jdbc.queryForObject("select max(expires_at) from access_control.refresh_tokens where session_id = ?",
+                Timestamp.class, session)).isEqualTo(ends);
+
+        // Once its time is over, the cookie buys nothing, and the person signs in again
+        jdbc.update("update access_control.user_sessions set expires_at = now() - interval '1 second' where id = ?", session);
+        assertThat(refresh(refreshed.getResponse().getCookie(COOKIE))).hasStatus(HttpStatus.UNAUTHORIZED);
+        assertThat(get("/api/me", user)).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void a_new_installation_signs_people_out_after_half_an_hour_without_activity() {
+        assertThat(get("/api/settings", admin())).hasStatusOk().bodyJson().extractingPath("$.sessionTimeoutMinutes").isEqualTo(30);
     }
 
     @Test
@@ -128,8 +159,13 @@ class AccountHygieneIT extends ApiIntegrationTest {
 
     /** As if this browser made its last request so many minutes ago */
     private void lastSeenAgo(Browser as, int minutes) {
-        JsonNode claims = json.readTree(Base64.getUrlDecoder().decode(as.token().split("\\.")[1]));
         jdbc.update("update access_control.user_sessions set last_seen_at = now() - make_interval(mins => ?) where id = ?",
-                minutes, UUID.fromString(claims.get("sid").asString()));
+                minutes, sessionId(as));
+    }
+
+    /** The session of this browser's access token */
+    private UUID sessionId(Browser as) {
+        JsonNode claims = json.readTree(Base64.getUrlDecoder().decode(as.token().split("\\.")[1]));
+        return UUID.fromString(claims.get("sid").asString());
     }
 }

@@ -331,3 +331,11 @@
   - `user_credentials.last_totp_step` (`V16__totp_used_once.sql`) เก็บช่วง 30 วินาทีของรหัสล่าสุดที่รับไว้ `TotpService.matchedStep` บอกว่ารหัสตรงกับช่วงไหน (ยังเทียบทุกช่วงแบบ constant time) แล้ว `UserCredentialRepository.useTotpStep` รับช่วงนั้นด้วย `update ... where last_totp_step is null or last_totp_step < :step` ได้ 0 แถวแปลว่าใช้ไปแล้ว ตอบ `invalid_code` และนับเป็นรหัสผิด การเปิด 2 ขั้นตอนเก็บช่วงของรหัสที่ใช้ยืนยันไว้ด้วย การปิดล้างค่าทิ้ง
   - `RecoveryCodeRepository.useUp` ทำเครื่องหมายด้วย `update ... where used_at is null` ก่อนตอบว่าผ่าน ฐานข้อมูลให้ผ่านได้เพียง request เดียว
 - Consequences: เข้าสู่ระบบสองครั้งภายในช่วง 30 วินาทีเดียวกันต้องรอรหัสถัดไป ซึ่งเป็นพฤติกรรมเดียวกับ GitHub และ Google ข้อมูลตัวอย่างในเบราว์เซอร์ (`LocalAdminApi`) ไม่ได้ทำตามข้อนี้ เช่นเดียวกับ lockout เพราะไม่ใช่ขอบเขตความปลอดภัย
+
+## P-037 session มีอายุนับจากตอนเข้าสู่ระบบ และการติดตั้งใหม่ออกจากระบบเมื่อไม่ได้ใช้งาน 30 นาที (ต่อจาก P-027)
+
+- Context: การตรวจความปลอดภัยตาม OWASP ASVS 5.0 (V7.3.1, V7.3.2) พบว่า `LoginService.refresh` เลื่อน `expiresAt` ของ session ออกไปอีก 12 ชั่วโมงหรือ 30 วันทุกครั้งที่ refresh session ที่ refresh สม่ำเสมอจึงไม่หมดอายุเลย ส่วน `sessionTimeoutMinutes` เริ่มต้นที่ 0 คือไม่ออกจากระบบเมื่อไม่ได้ใช้งาน cookie หรือ token ที่รั่วไปจึงใช้ได้ไปเรื่อยๆ
+- Decision:
+  - `expiresAt` ของ session ตั้งครั้งเดียวตอนเข้าสู่ระบบ คือ `access-control.token.refresh-ttl` (12 ชั่วโมง) หรือ `remember-ttl` (30 วัน) การ refresh ไม่เลื่อนมัน refresh token ใหม่หมดอายุพร้อม session และ cookie แบบ remember มี Max-Age เท่าเวลาที่เหลือ 12 ชั่วโมงตรงกับที่ NIST SP 800-63B (rev. 3, 4.2.3) กำหนดให้ AAL2 ยืนยันตัวตนใหม่
+  - การติดตั้งใหม่ตั้ง `sessionTimeoutMinutes` เป็น 30 (`SettingsInitializer` และ `DEFAULT_SETTINGS` ใน `catalog.ts` ของทั้งสองแอป) ตาม idle timeout ของ AAL2 ใน NIST SP 800-63B การติดตั้งเดิมคงค่าที่ผู้ดูแลตั้งไว้
+- Consequences: คนที่ทำงานต่อเนื่องเกิน 12 ชั่วโมงต้องเข้าสู่ระบบใหม่ และคนที่เลือก remember ต้องเข้าสู่ระบบใหม่ทุก 30 วัน ไม่มี migration เพราะ `createdAt` และ `expiresAt` มีอยู่แล้ว session ที่เปิดอยู่ตอนอัปเกรดจบตาม `expiresAt` ล่าสุดที่ถูกเลื่อนไว้

@@ -9,7 +9,7 @@ import java.util.UUID;
 import org.hibernate.annotations.UuidGenerator;
 import org.jspecify.annotations.Nullable;
 
-/** One sign-in on one browser, from login until someone ends it or its refresh cookie runs out */
+/** One sign-in on one browser, from login until someone ends it, it goes idle, or its lifetime from login is over */
 @Entity
 @Table(name = "user_sessions")
 public class UserSession {
@@ -24,7 +24,7 @@ public class UserSession {
     private UUID userId;
     private Instant createdAt;
     private Instant lastSeenAt;
-    /** Moves forward with every refresh */
+    /** Its sign-in and its lifetime: refreshing does not move it, so it ends however often it refreshes (P-037) */
     private Instant expiresAt;
     /** When it last proved who is signed in: its sign-in, or a password confirmed since; refreshing does not count */
     private Instant verifiedAt;
@@ -71,10 +71,6 @@ public class UserSession {
         this.lastSeenAt = now;
     }
 
-    public void extend(Instant expiresAt, Instant now) {
-        this.expiresAt = expiresAt;
-        this.lastSeenAt = now;
-    }
 
     public void end(Instant now) {
         if (endedAt == null) {
@@ -97,6 +93,10 @@ public class UserSession {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Instant getExpiresAt() {
+        return expiresAt;
     }
 
     public Instant getLastSeenAt() {
