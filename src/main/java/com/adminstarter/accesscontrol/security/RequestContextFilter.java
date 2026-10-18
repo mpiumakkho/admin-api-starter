@@ -15,7 +15,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * Binds the RequestContext (request id, IP address, browser, OS) for the rest of the request, first in the security
  * chain, and puts the request id in the log lines and the X-Request-Id answer header. Behind a proxy, set
- * server.forward-headers-strategy so the IP address is the client's.
+ * server.forward-headers-strategy so the IP address is the client's, as told only by the proxies in AC_TRUSTED_PROXIES
+ * (P-040).
  */
 public class RequestContextFilter extends OncePerRequestFilter {
 

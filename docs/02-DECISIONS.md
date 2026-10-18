@@ -356,3 +356,9 @@
   - `@Avatar` รับค่าว่าง (ไม่มีรูป) หรือ data URL แบบ base64 ของ `image/jpeg`, `image/png` หรือ `image/webp` ยาวไม่เกิน 100,000 ตัวอักษร ที่ถอด base64 ได้ และ byte แรกตรงกับชนิดที่บอก แอปทั้งสองส่ง JPEG ขนาด 160 pixel ซึ่งเล็กกว่านั้นมาก
   - `firstName`, `lastName` และ `department` ใน `PATCH /users/:id` ละไว้ได้ แต่ส่งเป็นค่าว่างไม่ได้ เหมือนตอนสร้าง
 - Consequences: ผู้ใช้เดิมที่มีรูปเป็นลิงก์หรือใหญ่เกินยังเก็บไว้ได้จนกว่าจะเปลี่ยน หน้าเว็บทั้งสองตรวจขนาดไฟล์ CSV ก่อนอ่าน และตรวจรูปแบบรูปโปรไฟล์เหมือนกันในข้อมูลตัวอย่าง
+
+## P-040 เชื่อ `X-Forwarded-For` เฉพาะจาก reverse proxy ที่ระบุใน `AC_TRUSTED_PROXIES`
+
+- Context: การตรวจความปลอดภัยตาม OWASP ASVS 5.0 (V4.1.3) พบว่า `application-prod.yml` ใช้ `forward-headers-strategy: native` แต่ไม่ได้ระบุ `server.tomcat.remoteip.internal-proxies` Tomcat จึงใช้ค่าเริ่มต้นที่เชื่อทุก address ในช่วง private เครื่องในเครือข่ายภายในที่เข้าถึงพอร์ตของแอปได้ตรงๆ จึงส่ง `X-Forwarded-For` ปลอมเพื่อหลบ rate limit ต่อ IP ทำให้ lockout แบบ smart lockout (P-035) เห็นเป็น address คุ้นเคย และทำให้ IP ใน activity log กับรายการอุปกรณ์เชื่อไม่ได้
+- Decision: `server.tomcat.remoteip.internal-proxies` มาจาก `AC_TRUSTED_PROXIES` ซึ่งไม่มีค่าเริ่มต้น ถ้าไม่ตั้งแอปไม่ start (`ProductionConfigTest` กันไม่ให้ค่านี้หายไปจาก `application-prod.yml`) OPERATIONS.md บอกว่า proxy ต้องเขียนทับ `X-Forwarded-For` และพอร์ต 8080 ต้องเข้าถึงได้จาก proxy เท่านั้น `deploy/nginx.conf` ของหน้าเว็บทั้งสองทำแบบนั้นอยู่แล้ว
+- Consequences: การติดตั้งเดิมต้องเพิ่ม `AC_TRUSTED_PROXIES` ก่อนอัปเกรด ถ้าตั้งผิด (proxy ไม่อยู่ในรายการ) ทุกคำขอจะดูเหมือนมาจาก IP ของ proxy rate limit จะนับรวมทุกคน ให้ตรวจจาก IP ในรายการอุปกรณ์หลังอัปเกรด

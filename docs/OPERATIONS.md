@@ -17,6 +17,14 @@
 
 `SessionCleanupJob` เขียน log ระดับ INFO ทุกคืน แม้จะไม่ได้ลบอะไร จึงใช้ดูได้ว่างานตามเวลายังรันอยู่ งานอื่นเขียน log เฉพาะเมื่อได้ทำอะไร เช่น `Suspended 3 accounts not used for 90 days` หรือ `Closed 1 access reviews on their due date`
 
+## reverse proxy
+
+แอปต้องอยู่หลัง reverse proxy ที่ทำ TLS (เช่น `deploy/nginx.conf` ของหน้าเว็บทั้งสอง) และเชื่อ IP ของผู้ใช้จาก `X-Forwarded-For` เฉพาะเมื่อคำขอมาจาก address ใน `AC_TRUSTED_PROXIES` (P-040) IP นี้ใช้กับ rate limit, การตัดสินว่า address คุ้นเคยหรือไม่ของ lockout (P-035), activity log และรายการอุปกรณ์ จึงต้องถูกต้อง:
+
+- `AC_TRUSTED_PROXIES` เป็น regular expression ของ IP ของ proxy เท่านั้น ไม่ใช่ช่วง private ทั้งหมด (ค่าเริ่มต้นของ Tomcat เชื่อทุก address ในวง 10/8, 172.16/12, 192.168/16 ซึ่งทำให้เครื่องใดก็ได้ในเครือข่ายภายในปลอม IP ได้) บน Docker หรือ Kubernetes ให้กำหนด IP ของ proxy ให้คงที่ หรือใช้ช่วงของ subnet ที่มีแต่ proxy อยู่
+- proxy ต้อง **เขียนทับ** `X-Forwarded-For` ด้วย address ที่ต่อเข้ามา (`proxy_set_header X-Forwarded-For $remote_addr;` ใน nginx) ไม่ใช่ต่อท้ายค่าที่ผู้ใช้ส่งมา และตั้ง `X-Forwarded-Proto` เป็น `https`
+- พอร์ต 8080 ของแอปต้องเข้าถึงได้จาก proxy เท่านั้น (firewall, security group หรือ network ของ container) ไม่อย่างนั้นใครก็ข้าม proxy มาได้ แม้จะปลอม IP ไม่ได้แล้วก็ตาม
+
 ## หลายอินสแตนซ์
 
 ข้อมูลทั้งหมดอยู่ใน PostgreSQL จึงรันหลายอินสแตนซ์ได้ (เงื่อนไขดูใน [README](../README.md)) แต่งานตามเวลาไม่มีตัวกลางที่เลือกว่าใครเป็นคนรัน **ทุกอินสแตนซ์จึงรันทุกงานพร้อมกัน**

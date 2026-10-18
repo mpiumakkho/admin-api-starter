@@ -16,6 +16,12 @@ spring:
 server:
   # Behind a reverse proxy: take the client's address and scheme from X-Forwarded-*
   forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Whose X-Forwarded-For to believe, as a regular expression of addresses: the reverse proxy's, nobody else's.
+      # Tomcat's own default believes every private address, so anyone inside the network could pass for another
+      # address and get round the rate limits and the lockout (P-040)
+      internal-proxies: ${AC_TRUSTED_PROXIES}
 
 access-control:
   token:
