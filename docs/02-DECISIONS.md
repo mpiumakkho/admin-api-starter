@@ -289,3 +289,12 @@
   - `TwoFactorService.start` ตอบ `invalid_request` เมื่อ two-step sign-in เปิดอยู่ จะเปลี่ยนแอป authenticator ต้องปิดก่อนด้วยรหัส (`POST /me/two-factor/disable`) แล้วจึงเปิดใหม่ ส่วนการเปิดจากสถานะปิดต้องยืนยันตัวตนซ้ำ เพราะ token ที่ถูกขโมยไปก็ผูกบัญชีของเหยื่อกับ authenticator ของผู้โจมตีได้เหมือนกัน `confirm` ปฏิเสธด้วย `invalid_request` เช่นกันเมื่อเปิดอยู่แล้ว
   - `TwoFactorSetupFilter` ให้ `POST /api/me/reauthenticate` ผ่านระหว่างที่ role บังคับ two-step sign-in (เพิ่มจากรายการของ P-016) คนที่เข้าสู่ระบบนานกว่า `reauthMinutes` แล้วจึงยืนยันรหัสผ่านก่อนเปิดได้ ไม่ติดค้าง
 - Consequences: รายการ "Confirming who you are" ใน API.md มี `PATCH /users/:id` เมื่อ `email` เปลี่ยน และ `POST /me/two-factor` เพิ่มขึ้น หน้าบ้านทั้งสองแอปไม่ต้องแก้ เพราะคำขอทั้งสองผ่าน `AdminStore.call` ที่ถามรหัสผ่านแล้วส่งซ้ำเมื่อได้ `reauth_required` อยู่แล้ว `LocalAdminApi` ของทั้งสองแอปตรวจแบบเดียวกัน
+
+## P-032 การตรวจรหัสผ่านและรหัสหลังเข้าสู่ระบบนับรวมใน lockout และมี rate limit (ต่อจาก P-025 และ P-026)
+
+- Context: การตรวจความปลอดภัยตาม OWASP ASVS 5.0 (V6.3.1, V2.4.1) พบว่า `POST /me/two-factor/disable` นับรหัสผิดผ่าน `checkTwoFactorCode` ตามที่ P-025 บอก แต่ `TwoFactorService` มี `@Transactional` ที่ไม่มี `noRollbackFor` เมื่อรหัสผิดและโยน `INVALID_CODE` ตัวนับที่เพิ่มไว้จึงถูก rollback ไปด้วย, `checkTwoFactorCode` ไม่ตรวจว่าบัญชีถูกล็อก, `POST /me/password` ไม่นับรหัสผ่านปัจจุบันที่ผิดเลย และทั้งสอง endpoint ไม่มี rate limit คนที่ได้ access token ไปจึงสุ่มรหัสหกหลักจนปิด two-step sign-in ได้ และสุ่มรหัสผ่านเดิมได้เรื่อยๆ
+- Decision:
+  - `TwoFactorService.disable` และ `CredentialServiceImpl.changeOwnPassword` ใช้ `@Transactional(noRollbackFor = AccessControlException.class)` แบบเดียวกับ `LoginService` การใส่ผิดจึงถูกบันทึกพร้อมคำตอบที่ปฏิเสธ
+  - `changeOwnPassword` ตรวจรหัสเดิมผ่าน `checkPassword` ซึ่งนับการใส่ผิดและไม่ตรวจรหัสระหว่างล็อก `checkTwoFactorCode` ไม่ตรวจรหัสระหว่างล็อกเช่นกัน
+  - `RateLimitFilter` จำกัด `/api/me/password` และ `/api/me/two-factor/disable` ต่อ IP ด้วยค่าเดียวกับการเข้าสู่ระบบ (`access-control.rate-limit.login`)
+- Consequences: การใส่ผิดห้าครั้งที่สอง endpoint นี้ล็อกบัญชีเหมือนการเข้าสู่ระบบ และ `auth.account_locked` ถูกบันทึก (`FailedSignInsIT`) เจ้าของบัญชีที่ใส่รหัสเดิมผิดเองก็ถูกล็อกด้วย ซึ่งเป็นพฤติกรรมเดียวกับหน้าเข้าสู่ระบบ

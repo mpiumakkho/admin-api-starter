@@ -7,6 +7,7 @@ import static com.adminstarter.accesscontrol.common.constant.ErrorCode.TWO_FACTO
 import com.adminstarter.accesscontrol.AccessControlProperties;
 import com.adminstarter.accesscontrol.authorization.CorePermissions;
 import com.adminstarter.accesscontrol.common.context.Actor;
+import com.adminstarter.accesscontrol.common.exception.AccessControlException;
 import com.adminstarter.accesscontrol.identity.dto.RecoveryCodesLeftResponse;
 import com.adminstarter.accesscontrol.identity.dto.RecoveryCodesResponse;
 import com.adminstarter.accesscontrol.identity.dto.TwoFactorConfirmationResponse;
@@ -94,8 +95,10 @@ public class TwoFactorService {
 
     /**
      * Your own, with a current code or a recovery code, wrong ones counting towards the lockout; two_factor_mandatory
-     * while your role requires it. The recovery codes go with it.
+     * while your role requires it. The recovery codes go with it. A wrong code still commits what it counted
+     * (noRollbackFor), as at sign-in, or six digits could be guessed here without end.
      */
+    @Transactional(noRollbackFor = AccessControlException.class)
     public UserResponse disable(Actor actor, String code) {
         if (actor.roleIds().stream().anyMatch(settings::requiresTwoFactor)) {
             throw TWO_FACTOR_MANDATORY.exception();

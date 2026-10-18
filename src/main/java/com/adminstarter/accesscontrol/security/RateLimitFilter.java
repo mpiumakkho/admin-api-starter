@@ -34,6 +34,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         this.perMinute = Map.of(
                 "/api/auth/login", limits.login(),
                 "/api/me/reauthenticate", limits.login(),
+                // Also checks of a password or a code with a token already in hand, which a stolen one could guess at
+                "/api/me/password", limits.login(),
+                "/api/me/two-factor/disable", limits.login(),
                 "/api/auth/refresh", limits.refresh(),
                 "/api/auth/activate", limits.emailLinks(),
                 "/api/auth/password-reset/request", limits.emailLinks(),

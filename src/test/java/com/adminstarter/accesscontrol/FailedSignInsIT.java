@@ -77,6 +77,48 @@ class FailedSignInsIT extends ApiIntegrationTest {
         assertThat(cause(failures(user).getFirst())).isEqualTo("locked");
     }
 
+    @Test
+    void wrong_codes_to_turn_two_step_sign_in_off_count_towards_the_lockout() {
+        var user = newUser("Viewer", PASSWORD);
+        var email = user.user().get("email").asString();
+        var secret = body(send(HttpMethod.POST, "/api/me/two-factor", user, null)).get("secret").asString();
+        assertThat(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", totp.codeAt(secret, Instant.now()))))
+                .hasStatusOk();
+        for (var attempt = 0; attempt < 5; attempt++) {
+            assertRefused(send(HttpMethod.POST, "/api/me/two-factor/disable", user, Map.of("code", "000000")),
+                    HttpStatus.UNAUTHORIZED, "invalid_code");
+        }
+
+        // Locked, as five wrong codes at sign-in lock it: the right code is refused here and at sign-in
+        assertThat(locks(user)).hasSize(1);
+        assertRefused(send(HttpMethod.POST, "/api/me/two-factor/disable", user, Map.of("code", totp.codeAt(secret, Instant.now()))),
+                HttpStatus.UNAUTHORIZED, "invalid_code");
+        assertRefused(login(email, PASSWORD, totp.codeAt(secret, Instant.now())), HttpStatus.UNAUTHORIZED, "invalid_credentials");
+        assertThat(get("/api/me", user)).hasStatusOk().bodyJson().extractingPath("$.twoFactor").isEqualTo(true);
+    }
+
+    @Test
+    void wrong_current_passwords_count_towards_the_lockout() {
+        var user = newUser("Viewer", PASSWORD);
+        var email = user.user().get("email").asString();
+        for (var attempt = 0; attempt < 5; attempt++) {
+            assertRefused(send(HttpMethod.POST, "/api/me/password", user,
+                    Map.of("currentPassword", "not-the-password", "newPassword", "another-pass-1")), HttpStatus.UNAUTHORIZED, "invalid_credentials");
+        }
+
+        // Locked: the right current password is refused too, and so is signing in with it
+        assertThat(locks(user)).hasSize(1);
+        assertRefused(send(HttpMethod.POST, "/api/me/password", user,
+                Map.of("currentPassword", PASSWORD, "newPassword", "another-pass-1")), HttpStatus.UNAUTHORIZED, "invalid_credentials");
+        assertRefused(login(email, PASSWORD, null), HttpStatus.UNAUTHORIZED, "invalid_credentials");
+    }
+
+    /** The lockouts of this person */
+    private List<JsonNode> locks(Browser user) {
+        return entries("auth.account_locked").stream()
+                .filter(entry -> entry.get("targetId").asString().equals(user.userId().toString())).toList();
+    }
+
     /** The failed sign-ins of this person, newest first */
     private List<JsonNode> failures(Browser user) {
         return entries("auth.sign_in_failed").stream()

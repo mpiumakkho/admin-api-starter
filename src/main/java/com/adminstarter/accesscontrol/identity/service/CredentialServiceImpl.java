@@ -3,6 +3,7 @@ package com.adminstarter.accesscontrol.identity.service;
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.INVALID_CREDENTIALS;
 
 import com.adminstarter.accesscontrol.common.context.Actor;
+import com.adminstarter.accesscontrol.common.exception.AccessControlException;
 import com.adminstarter.accesscontrol.identity.entity.PreviousPassword;
 import com.adminstarter.accesscontrol.identity.entity.UserCredential;
 import com.adminstarter.accesscontrol.identity.event.AccountLocked;
@@ -84,6 +85,10 @@ public class CredentialServiceImpl implements CredentialService {
     @Override
     public boolean checkTwoFactorCode(UUID userId, String code) {
         var credential = load(userId);
+        // Locked: no code is checked, as no password is (P-026)
+        if (credential.lockedAt(clock.instant())) {
+            return false;
+        }
         var secret = credential.getTwoFactorSecret();
         if (secret != null && (totp.verify(secret, code) || usedRecoveryCode(userId, code))) {
             return true;
@@ -112,13 +117,16 @@ public class CredentialServiceImpl implements CredentialService {
         events.publishEvent(new UserPasswordChanged(userId, access.find(userId).getFullName(), null));
     }
 
-    /** POST /me/password: the current password must be right; the other sessions end */
+    /**
+     * POST /me/password: the current password must be right, and a wrong one counts towards the lockout as at
+     * sign-in, its count committed with the refusal (noRollbackFor); the other sessions end
+     */
+    @Transactional(noRollbackFor = AccessControlException.class)
     public void changeOwnPassword(Actor actor, String currentPassword, String newPassword) {
-        var credential = load(actor.userId());
-        var hash = credential.getPasswordHash();
-        if (hash == null || !encoder.matches(currentPassword, hash)) {
+        if (!checkPassword(actor.userId(), currentPassword)) {
             throw INVALID_CREDENTIALS.exception();
         }
+        var credential = load(actor.userId());
         replacePassword(credential, newPassword);
         var fullName = access.find(actor.userId()).getFullName();
         events.publishEvent(new UserPasswordChanged(actor.userId(), fullName, actor.sessionId()));
