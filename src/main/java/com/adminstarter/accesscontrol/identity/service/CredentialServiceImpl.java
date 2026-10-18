@@ -57,24 +57,24 @@ public class CredentialServiceImpl implements CredentialService {
     }
 
     @Override
-    public boolean checkPassword(UUID userId, String password) {
+    public boolean checkPassword(UUID userId, String password, boolean familiar) {
         var credential = credentials.findById(userId).orElse(null);
         var hash = credential == null ? null : credential.getPasswordHash();
-        if (credential == null || hash == null || credential.lockedAt(clock.instant())) {
+        if (credential == null || hash == null || credential.lockedAt(clock.instant(), familiar)) {
             checkNoPassword(password);
             return false;
         }
         if (encoder.matches(password, hash)) {
             return true;
         }
-        failed(credential);
+        failed(credential, familiar);
         return false;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public boolean lockedNow(UUID userId) {
-        return credentials.findById(userId).map(credential -> credential.lockedAt(clock.instant())).orElse(false);
+    public boolean lockedNow(UUID userId, boolean familiar) {
+        return credentials.findById(userId).map(credential -> credential.lockedAt(clock.instant(), familiar)).orElse(false);
     }
 
     @Override
@@ -83,17 +83,17 @@ public class CredentialServiceImpl implements CredentialService {
     }
 
     @Override
-    public boolean checkTwoFactorCode(UUID userId, String code) {
+    public boolean checkTwoFactorCode(UUID userId, String code, boolean familiar) {
         var credential = load(userId);
         // Locked: no code is checked, as no password is (P-026)
-        if (credential.lockedAt(clock.instant())) {
+        if (credential.lockedAt(clock.instant(), familiar)) {
             return false;
         }
         var secret = credential.getTwoFactorSecret();
         if (secret != null && (totp.verify(secret, code) || usedRecoveryCode(userId, code))) {
             return true;
         }
-        failed(credential);
+        failed(credential, familiar);
         return false;
     }
 
@@ -107,8 +107,8 @@ public class CredentialServiceImpl implements CredentialService {
     }
 
     @Override
-    public void signInSucceeded(UUID userId) {
-        load(userId).succeeded();
+    public void signInSucceeded(UUID userId, boolean familiar) {
+        load(userId).succeeded(familiar);
     }
 
     @Override
@@ -179,10 +179,15 @@ public class CredentialServiceImpl implements CredentialService {
         previousPasswords.save(new PreviousPassword(credential.getUserId(), hash, clock.instant()));
     }
 
-    /** One more wrong answer in a row; the one that locks the account is logged (P-026) */
-    private void failed(UserCredential credential) {
-        var lockFor = lockoutPolicy.lockFor(credential.getFailedAttempts() + 1);
-        credential.failed(lockFor.map(clock.instant()::plus).orElse(null));
+    /**
+     * One more wrong answer in a row, from where the person signed in before or from elsewhere (P-035), the count
+     * starting again when the last was long enough ago; the one that locks the account is logged (P-026)
+     */
+    private void failed(UserCredential credential, boolean familiar) {
+        var now = clock.instant();
+        var attempts = credential.failedAttemptsSince(now.minus(lockoutPolicy.resetAfter()), familiar) + 1;
+        var lockFor = lockoutPolicy.lockFor(attempts);
+        credential.failed(familiar, attempts, now, lockFor.map(now::plus).orElse(null));
         lockFor.ifPresent(duration -> events.publishEvent(new AccountLocked(credential.getUserId(),
                 access.find(credential.getUserId()).getFullName(), duration.toMinutes())));
     }

@@ -19,6 +19,9 @@ public interface UserSessionRepository extends JpaRepository<UserSession, UUID> 
 
     boolean existsByUserId(UUID userId);
 
+    /** Whether the person signed in from this address before, within the month old sessions are kept (P-035) */
+    boolean existsByUserIdAndIp(UUID userId, String ip);
+
     /** Whether the person has signed in with this browser and system before, as far as the kept sessions go */
     boolean existsByUserIdAndBrowserAndOs(UUID userId, String browser, String os);
 

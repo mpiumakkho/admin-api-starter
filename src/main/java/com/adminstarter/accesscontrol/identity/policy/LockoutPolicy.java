@@ -15,11 +15,18 @@ public class LockoutPolicy {
     private final int maxAttempts;
     private final Duration baseDuration;
     private final Duration maxDuration;
+    private final Duration resetAfter;
 
     public LockoutPolicy(AccessControlProperties properties) {
         this.maxAttempts = properties.lockout().maxAttempts();
         this.baseDuration = properties.lockout().baseDuration();
         this.maxDuration = properties.lockout().maxDuration();
+        this.resetAfter = properties.lockout().resetAfter();
+    }
+
+    /** How long a count of wrong attempts stays with nothing new before it starts again (24h by default; P-035) */
+    public Duration resetAfter() {
+        return resetAfter;
     }
 
     public Optional<Duration> lockFor(int failedAttempts) {

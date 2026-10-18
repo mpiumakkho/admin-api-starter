@@ -12,6 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import tools.jackson.databind.JsonNode;
 
 /** Failed sign-ins and locked accounts in the activity log (API.md, "Signing in"; P-026) */
@@ -21,6 +24,9 @@ class FailedSignInsIT extends ApiIntegrationTest {
 
     @Autowired
     TotpService totp;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     @Test
     void a_refused_sign_in_of_someone_who_exists_is_logged_with_why() {
@@ -111,6 +117,46 @@ class FailedSignInsIT extends ApiIntegrationTest {
         assertRefused(send(HttpMethod.POST, "/api/me/password", user,
                 Map.of("currentPassword", PASSWORD, "newPassword", "another-pass-1")), HttpStatus.UNAUTHORIZED, "invalid_credentials");
         assertRefused(login(email, PASSWORD, null), HttpStatus.UNAUTHORIZED, "invalid_credentials");
+    }
+
+    @Test
+    void a_stranger_guessing_from_elsewhere_does_not_lock_the_person_out_where_they_sign_in() {
+        // newUser signed in from MockMvc's 127.0.0.1, so that address is familiar
+        var user = newUser("Viewer", PASSWORD);
+        var email = user.user().get("email").asString();
+        for (var attempt = 0; attempt < 5; attempt++) {
+            assertRefused(loginFrom("203.0.113.7", email, "not-the-password"), HttpStatus.UNAUTHORIZED, "invalid_credentials");
+        }
+
+        // Locked out there, the right password included, and logged; never where the person signed in before
+        assertThat(locks(user)).hasSize(1);
+        assertRefused(loginFrom("203.0.113.7", email, PASSWORD), HttpStatus.UNAUTHORIZED, "invalid_credentials");
+        assertThat(login(email, PASSWORD, null)).hasStatusOk();
+    }
+
+    @Test
+    void wrong_passwords_a_day_apart_start_the_count_again() {
+        var user = newUser("Viewer", PASSWORD);
+        var email = user.user().get("email").asString();
+        for (var attempt = 0; attempt < 4; attempt++) {
+            assertRefused(login(email, "not-the-password", null), HttpStatus.UNAUTHORIZED, "invalid_credentials");
+        }
+        // As if those four were a day ago: the next wrong one is the first again, not the fifth that locks
+        jdbc.update("update access_control.user_credentials set familiar_last_failed_at = familiar_last_failed_at - interval '25 hours' "
+                + "where user_id = ?", user.userId());
+        assertRefused(login(email, "not-the-password", null), HttpStatus.UNAUTHORIZED, "invalid_credentials");
+        assertThat(locks(user)).isEmpty();
+        assertThat(login(email, PASSWORD, null)).hasStatusOk();
+    }
+
+    /** Signing in from another address than MockMvc's own */
+    private MvcTestResult loginFrom(String ip, String email, String password) {
+        return mvc.post().uri("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .with(request -> {
+                    request.setRemoteAddr(ip);
+                    return request;
+                })
+                .content(json.writeValueAsString(Map.of("email", email, "password", password, "remember", false))).exchange();
     }
 
     /** The lockouts of this person */

@@ -86,8 +86,10 @@ public class LoginService {
             credentials.checkNoPassword(request.password());
             throw INVALID_CREDENTIALS.exception();
         }
-        var locked = credentials.lockedNow(account.id());
-        if (!credentials.checkPassword(account.id(), request.password())) {
+        // Wrong answers from where they signed in before count apart from a stranger's elsewhere (P-035)
+        var familiar = sessions.existsByUserIdAndIp(account.id(), RequestContext.currentOrNone().ip());
+        var locked = credentials.lockedNow(account.id(), familiar);
+        if (!credentials.checkPassword(account.id(), request.password(), familiar)) {
             failed(account, locked ? "locked" : "password");
             throw INVALID_CREDENTIALS.exception();
         }
@@ -96,8 +98,8 @@ public class LoginService {
             failed(account, suspended ? "suspended" : "invited");
             throw (suspended ? ACCOUNT_SUSPENDED : INVITE_PENDING).exception();
         }
-        checkCode(account, request.code());
-        credentials.signInSucceeded(account.id());
+        checkCode(account, request.code(), familiar);
+        credentials.signInSucceeded(account.id(), familiar);
         users.recordActivity(account.id());
 
         var now = clock.instant();
@@ -158,7 +160,7 @@ public class LoginService {
             failed(account, locked ? "locked" : "password");
             throw INVALID_CREDENTIALS.exception();
         }
-        checkCode(account, request.code());
+        checkCode(account, request.code(), true);
         credentials.signInSucceeded(account.id());
         sessions.findById(actor.sessionId()).orElseThrow(UNAUTHENTICATED::exception).verified(clock.instant());
     }
@@ -177,14 +179,14 @@ public class LoginService {
      * With two-step sign-in on: two_factor_required without a code, invalid_code for a wrong one, which counts and is
      * logged
      */
-    private void checkCode(AccountSummary account, @Nullable String code) {
+    private void checkCode(AccountSummary account, @Nullable String code, boolean familiar) {
         if (!account.twoFactor()) {
             return;
         }
         if (code == null || code.isBlank()) {
             throw TWO_FACTOR_REQUIRED.exception();
         }
-        if (!credentials.checkTwoFactorCode(account.id(), code)) {
+        if (!credentials.checkTwoFactorCode(account.id(), code, familiar)) {
             failed(account, "code");
             throw INVALID_CODE.exception();
         }

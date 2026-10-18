@@ -61,11 +61,16 @@ public record AccessControlProperties(
             @DefaultValue("/api/auth") String path,
             @DefaultValue("true") boolean secure) {}
 
-    /** After {@code maxAttempts} wrong passwords in a row, lock for baseDuration, doubling up to maxDuration */
+    /**
+     * After {@code maxAttempts} wrong passwords in a row, lock for baseDuration, doubling up to maxDuration; counted apart
+     * for the addresses the person signed in from before and for any other, and starting again after resetAfter with
+     * nothing new (P-035)
+     */
     public record Lockout(
             @DefaultValue("5") int maxAttempts,
             @DefaultValue("1m") Duration baseDuration,
-            @DefaultValue("30m") Duration maxDuration) {}
+            @DefaultValue("30m") Duration maxDuration,
+            @DefaultValue("24h") Duration resetAfter) {}
 
     /** Origins of the dashboard, for CORS and for the Origin check on the cookie endpoints */
     public record Cors(@DefaultValue List<String> allowedOrigins) {}
