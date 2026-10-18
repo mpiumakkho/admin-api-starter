@@ -53,13 +53,17 @@ class ReauthenticationIT extends ApiIntegrationTest {
                 send(HttpMethod.POST, "/api/users/" + target + "/two-factor/reset", admin, Map.of("reason", "Lost their phone")),
                 send(HttpMethod.DELETE, "/api/sessions/" + session, admin, null),
                 send(HttpMethod.POST, "/api/users/" + target + "/sessions/end", admin, null),
-                send(HttpMethod.PATCH, "/api/settings", admin, Map.of("inviteExpiryDays", 14)))
+                send(HttpMethod.PATCH, "/api/settings", admin, Map.of("inviteExpiryDays", 14)),
+                // What recovers an account: the email the reset links go to, and the authenticator
+                send(HttpMethod.PATCH, "/api/users/" + target, admin, Map.of("email", uniqueEmail())),
+                send(HttpMethod.POST, "/api/me/two-factor", admin, null))
                 .forEach(result -> assertRefused(result, HttpStatus.FORBIDDEN, "reauth_required"));
         // Nothing changed
         assertThat(get("/api/me", viewer)).hasStatusOk();
 
-        // A role's color, someone's status, and your own devices do not ask
+        // A role's color, someone's phone or status, and your own devices do not ask
         assertThat(send(HttpMethod.PATCH, "/api/roles/" + role, admin, Map.of("tone", "info"))).hasStatusOk();
+        assertThat(send(HttpMethod.PATCH, "/api/users/" + target, admin, Map.of("phone", "0812345678"))).hasStatusOk();
         signedInLongAgo(viewer);
         assertThat(send(HttpMethod.POST, "/api/users/" + target + "/sessions/end", viewer, null)).hasStatus(HttpStatus.NO_CONTENT);
         assertThat(send(HttpMethod.POST, "/api/users/status", admin,
@@ -96,6 +100,23 @@ class ReauthenticationIT extends ApiIntegrationTest {
                 HttpStatus.UNAUTHORIZED, "invalid_code");
         assertThat(send(HttpMethod.POST, "/api/me/reauthenticate", user,
                 Map.of("password", "viewer-pass-1", "code", totp.codeAt(secret, Instant.now())))).hasStatus(HttpStatus.NO_CONTENT);
+    }
+
+    @Test
+    void an_authenticator_in_use_is_not_replaced_until_two_step_sign_in_is_turned_off_with_a_code() {
+        var user = newUser("Viewer", "viewer-pass-1");
+        var secret = body(send(HttpMethod.POST, "/api/me/two-factor", user, null)).get("secret").asString();
+        assertThat(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", totp.codeAt(secret, Instant.now()))))
+                .hasStatusOk();
+
+        // A stolen access token cannot bind the account to another authenticator, nor take new recovery codes
+        assertRefused(send(HttpMethod.POST, "/api/me/two-factor", user, null), HttpStatus.BAD_REQUEST, "invalid_request");
+        assertRefused(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", totp.codeAt(secret, Instant.now()))),
+                HttpStatus.BAD_REQUEST, "invalid_request");
+
+        assertThat(send(HttpMethod.POST, "/api/me/two-factor/disable", user, Map.of("code", totp.codeAt(secret, Instant.now()))))
+                .hasStatusOk();
+        assertThat(send(HttpMethod.POST, "/api/me/two-factor", user, null)).hasStatusOk();
     }
 
     @Test

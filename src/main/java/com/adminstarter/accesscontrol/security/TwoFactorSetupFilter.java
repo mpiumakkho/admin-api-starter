@@ -18,11 +18,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class TwoFactorSetupFilter extends OncePerRequestFilter {
 
-    /** Seeing who you are, the settings and the roles, and turning two-step sign-in on */
+    /**
+     * Seeing who you are, the settings and the roles, and turning two-step sign-in on, which may first ask for the
+     * password again
+     */
     private static final Set<String> SETUP = Set.of(
             "GET /api/me",
             "GET /api/settings",
             "GET /api/roles",
+            "POST /api/me/reauthenticate",
             "POST /api/me/two-factor",
             "POST /api/me/two-factor/confirm");
 

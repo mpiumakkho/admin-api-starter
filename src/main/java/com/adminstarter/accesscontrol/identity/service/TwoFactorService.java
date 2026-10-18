@@ -60,17 +60,29 @@ public class TwoFactorService {
         this.issuer = properties.productName();
     }
 
-    /** A new secret, pending until confirmed with a code from it */
+    /**
+     * A new secret, pending until confirmed with a code from it. Not while two-step sign-in is on: replacing the
+     * authenticator would take the account from whoever has the access token, so it is turned off first, with a code.
+     * A risky change (P-023): a stolen token could otherwise bind someone else's account to its own authenticator.
+     */
     public TwoFactorSetupResponse start(Actor actor) {
+        var credential = load(actor.userId());
+        if (credential.getTwoFactorSecret() != null) {
+            throw INVALID_REQUEST.exception();
+        }
+        actor.requireRecentSignIn();
         var user = access.find(actor.userId());
         var secret = totp.createSecret();
-        load(actor.userId()).startTwoFactor(secret);
+        credential.startTwoFactor(secret);
         return new TwoFactorSetupResponse(secret, totp.uri(secret, user.getEmail(), issuer));
     }
 
     /** On, with its first recovery codes (P-025) */
     public TwoFactorConfirmationResponse confirm(Actor actor, String code) {
         var credential = load(actor.userId());
+        if (credential.getTwoFactorSecret() != null) {
+            throw INVALID_REQUEST.exception();
+        }
         var pending = credential.getPendingTwoFactorSecret();
         if (pending == null || !totp.verify(pending, code)) {
             throw INVALID_CODE.exception();

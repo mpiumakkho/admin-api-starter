@@ -133,6 +133,8 @@ public class UserLifecycleService {
             access.requireEmailFree(after.email(), id);
             if (!after.email().equalsIgnoreCase(before.email())) {
                 access.requireEmailDomain(after.email());
+                // A new email receives the reset links: whoever changes it could take the account (P-023)
+                actor.requireRecentSignIn();
             }
         }
         // Nobody new joins a closed branch; someone already in it stays

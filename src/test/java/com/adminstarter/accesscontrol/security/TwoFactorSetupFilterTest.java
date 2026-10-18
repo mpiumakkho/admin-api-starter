@@ -27,8 +27,8 @@ class TwoFactorSetupFilterTest {
     @Test
     void someone_who_must_turn_it_on_gets_only_what_turning_it_on_needs() throws Exception {
         signIn(true);
-        for (var allowed : List.of("GET /api/me", "GET /api/settings", "GET /api/roles", "POST /api/me/two-factor",
-                "POST /api/me/two-factor/confirm")) {
+        for (var allowed : List.of("GET /api/me", "GET /api/settings", "GET /api/roles", "POST /api/me/reauthenticate",
+                "POST /api/me/two-factor", "POST /api/me/two-factor/confirm")) {
             assertThat(passes(allowed)).as(allowed).isTrue();
         }
         for (var held : List.of("GET /api/users", "GET /api/activity", "GET /api/events", "POST /api/me/password",

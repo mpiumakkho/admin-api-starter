@@ -280,3 +280,12 @@
   - งาน cron ทุกตัวต้องประกาศ `zone = AccessControlProperties.TIME_ZONE` (`${access-control.time-zone:Asia/Bangkok}`) กฎ J1 ใน `contracts/dependency-rules.yaml` (`SchedulingRuleTest`) ทำให้ build ไม่ผ่านถ้ามีงาน cron ตัวไหนไม่ได้ประกาศ ส่วนงานที่รันตามช่วงเวลา (`fixedDelay`, `fixedRate`) ไม่ขึ้นกับเขตเวลา
   - ไม่เปลี่ยนเขตเวลาของ JVM เพราะเวลาในฐานข้อมูลเป็น `timestamptz` และ log มี offset กำกับอยู่แล้ว
 - Consequences: เปลี่ยน `AC_TIME_ZONE` แล้วทั้งเวลาในอีเมลและชั่วโมงที่งานกลางคืนรันจะเปลี่ยนตาม เขตเวลาที่มี daylight saving อาจทำให้งานที่ตั้งไว้ในชั่วโมงที่เปลี่ยนเวลาถูกข้ามหรือรันซ้ำในคืนนั้น (`Asia/Bangkok` ไม่มี daylight saving) เขตเวลานี้กำหนดแค่ว่างานรันตอนไหน ส่วนระยะเวลาที่นับ (เช่น ไม่ได้ใช้ 90 วัน หรือเก็บ activity 365 วัน) ยังนับจาก `Instant` เหมือนเดิม
+
+## P-031 การเปลี่ยนสิ่งที่ใช้กู้บัญชีต้องยืนยันตัวตนซ้ำ: อีเมล และแอป authenticator (ต่อจาก P-023 และ P-016)
+
+- Context: การตรวจความปลอดภัยตาม OWASP ASVS 5.0 (V7.5.1, V6.3.4) พบว่า `PATCH /users/:id` เปลี่ยนอีเมลได้โดยไม่ผ่าน `requireRecentSignIn` และเมื่อเปิด two-step sign-in อยู่แล้ว `POST /me/two-factor` ตามด้วย `/confirm` ยังตั้ง secret ใหม่ทับของเดิมพร้อมออกรหัสสำรองชุดใหม่ได้โดยไม่ต้องใช้รหัสเดิม คนที่ได้ access token ไปจึงเปลี่ยนอีเมล ขอลิงก์รีเซ็ตรหัสผ่าน แล้วผูก authenticator ของตัวเอง เป็นการยึดบัญชีถาวร และเป็นทางอ้อม P-023 ที่ `POST /me/recovery-codes` บังคับไว้
+- Decision:
+  - `UserLifecycleService.update` เรียก `actor.requireRecentSignIn()` เมื่ออีเมลเปลี่ยน หลังตรวจว่าอีเมลว่างและอยู่ในโดเมนที่อนุญาต การแก้ field อื่น (ชื่อ เบอร์โทร สถานะ) ไม่ถาม
+  - `TwoFactorService.start` ตอบ `invalid_request` เมื่อ two-step sign-in เปิดอยู่ จะเปลี่ยนแอป authenticator ต้องปิดก่อนด้วยรหัส (`POST /me/two-factor/disable`) แล้วจึงเปิดใหม่ ส่วนการเปิดจากสถานะปิดต้องยืนยันตัวตนซ้ำ เพราะ token ที่ถูกขโมยไปก็ผูกบัญชีของเหยื่อกับ authenticator ของผู้โจมตีได้เหมือนกัน `confirm` ปฏิเสธด้วย `invalid_request` เช่นกันเมื่อเปิดอยู่แล้ว
+  - `TwoFactorSetupFilter` ให้ `POST /api/me/reauthenticate` ผ่านระหว่างที่ role บังคับ two-step sign-in (เพิ่มจากรายการของ P-016) คนที่เข้าสู่ระบบนานกว่า `reauthMinutes` แล้วจึงยืนยันรหัสผ่านก่อนเปิดได้ ไม่ติดค้าง
+- Consequences: รายการ "Confirming who you are" ใน API.md มี `PATCH /users/:id` เมื่อ `email` เปลี่ยน และ `POST /me/two-factor` เพิ่มขึ้น หน้าบ้านทั้งสองแอปไม่ต้องแก้ เพราะคำขอทั้งสองผ่าน `AdminStore.call` ที่ถามรหัสผ่านแล้วส่งซ้ำเมื่อได้ `reauth_required` อยู่แล้ว `LocalAdminApi` ของทั้งสองแอปตรวจแบบเดียวกัน
