@@ -370,3 +370,9 @@
   - `application-prod.yml` ตั้ง `mail.smtp.starttls.required: true` และ `mail.smtp.ssl.checkserveridentity: true` ส่งไม่ได้ดีกว่าส่งแบบไม่เข้ารหัส (`ProductionConfigTest` กันไม่ให้ค่าเหล่านี้หายไป)
   - `DatabaseTlsConfig` ทำให้ profile `prod` ไม่ start ถ้า `spring.datasource.url` ไม่มี `sslmode=verify-full` ซึ่งเข้ารหัสและตรวจทั้งใบรับรองและชื่อเครื่อง โหมดพัฒนาใช้ฐานข้อมูลใน docker บนเครื่องตัวเองได้ตามเดิม
 - Consequences: การติดตั้งเดิมต้องเพิ่ม `sslmode=verify-full` ใน `DB_URL` และเปิด TLS ที่ PostgreSQL ก่อนอัปเกรด ถ้าใบรับรองออกโดย CA ภายใน ต้องให้ `sslrootcert` ชี้ไปที่ใบรับรองของ CA นั้น เซิร์ฟเวอร์อีเมลที่ไม่รองรับ STARTTLS จะส่งไม่ได้และ log `Could not send …` (OPERATIONS.md)
+
+## P-042 การติดตั้งใหม่บังคับ two-step sign-in กับบทบาท Administrator (ต่อจาก P-016)
+
+- Context: การตรวจความปลอดภัยตาม OWASP ASVS 5.0 (V6.3.3) พบว่าการตั้งค่าบังคับ two-step sign-in ต่อบทบาทได้ (P-016) แต่ `twoFactorRoleIds` ของการติดตั้งใหม่ว่าง บทบาท Administrator ซึ่งมีทุกสิทธิ์จึงเข้าสู่ระบบด้วยรหัสผ่านอย่างเดียว รหัสผ่านของผู้ดูแลรั่วครั้งเดียวก็ยึดทั้งระบบได้
+- Decision: `SettingsInitializer` ใส่บทบาทจาก `access-control.bootstrap.two-factor-roles` (ค่าเริ่มต้น `ADMINISTRATOR`) ใน `twoFactorRoleIds` ของการติดตั้งใหม่ ผู้ดูแลคนแรกจึงถูก `TwoFactorSetupFilter` ให้เปิด two-step sign-in ตอนเข้าสู่ระบบครั้งแรกก่อนทำอย่างอื่น ผู้ดูแลเปลี่ยนรายการนี้ได้ในหน้าตั้งค่าเหมือนเดิม integration test ตั้งค่านี้เป็นว่างเพื่อเข้าสู่ระบบด้วยรหัสผ่านอย่างเดียว และ `SettingsInitializerTest` ตรวจค่าเริ่มต้น
+- Consequences: การติดตั้งเดิมไม่เปลี่ยน (ให้ผู้ดูแลเพิ่ม Administrator ในหน้าตั้งค่าเอง) ข้อมูลตัวอย่างในหน้าเว็บทั้งสอง (`DEFAULT_SETTINGS` ใน `catalog.ts`) ยังว่าง เพราะบัญชีตัวอย่างเข้าสู่ระบบด้วยการกดครั้งเดียวเพื่อสาธิต ไม่ใช่การติดตั้งจริง

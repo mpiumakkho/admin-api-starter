@@ -6,6 +6,7 @@ import com.adminstarter.accesscontrol.settings.entity.AdminSettings;
 import com.adminstarter.accesscontrol.settings.repository.AdminSettingsRepository;
 import java.time.Clock;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
@@ -43,11 +44,18 @@ public class SettingsInitializer implements ApplicationRunner {
         if (settings.existsById(AdminSettings.ID)) {
             return;
         }
-        var code = properties.bootstrap().defaultRole();
-        var defaultRole = roles.findIdByCode(code)
-                .orElseThrow(() -> new IllegalStateException("access-control.bootstrap.default-role names no role: " + code));
-        settings.save(new AdminSettings(defaultRole, List.of(), INVITE_EXPIRY_DAYS, SESSION_TIMEOUT_MINUTES, List.of(),
+        var bootstrap = properties.bootstrap();
+        var defaultRole = role(bootstrap.defaultRole(), "default-role");
+        // Two-step sign-in for Administrator from the start (P-042): the first administrator turns it on at their first
+        // sign-in, before anything else opens
+        var twoFactorRoles = bootstrap.twoFactorRoles().stream().map(code -> role(code, "two-factor-roles")).toList();
+        settings.save(new AdminSettings(defaultRole, List.of(), INVITE_EXPIRY_DAYS, SESSION_TIMEOUT_MINUTES, twoFactorRoles,
                 PASSWORD_MIN_LENGTH, PASSWORD_HISTORY, ACTIVITY_RETENTION_DAYS,
                 clock.instant()));
+    }
+
+    private UUID role(String code, String property) {
+        return roles.findIdByCode(code)
+                .orElseThrow(() -> new IllegalStateException("access-control.bootstrap." + property + " names no role: " + code));
     }
 }

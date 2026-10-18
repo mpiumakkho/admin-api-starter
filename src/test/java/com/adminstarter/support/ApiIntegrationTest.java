@@ -38,6 +38,8 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @SpringBootTest(properties = {
         "access-control.bootstrap.admin-password=" + ApiIntegrationTest.ADMIN_PASSWORD,
+        // The tests sign the administrator in with a password alone; SettingsInitializerTest covers the default (P-042)
+        "access-control.bootstrap.two-factor-roles=",
         "access-control.rate-limit.login=10000",
         "access-control.rate-limit.refresh=10000",
         "access-control.rate-limit.email-links=10000",

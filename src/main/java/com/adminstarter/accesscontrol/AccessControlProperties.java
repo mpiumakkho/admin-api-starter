@@ -122,9 +122,13 @@ public record AccessControlProperties(
      * @param adminPassword the first administrator's password, at least the password rules' length; required while there
      *     are no users, and never written to the log (P-033)
      * @param defaultRole the code of the role new users get, until someone changes it on the settings page
+     * @param twoFactorRoles the codes of the roles that must use two-step sign-in on a new installation, until someone
+     *     changes them on the settings page: Administrator, whose password alone would otherwise give the whole system
+     *     away (P-042)
      */
     public record Bootstrap(
             @DefaultValue("admin@example.com") String adminEmail,
             @Nullable String adminPassword,
-            @DefaultValue("VIEWER") String defaultRole) {}
+            @DefaultValue("VIEWER") String defaultRole,
+            @DefaultValue("ADMINISTRATOR") List<String> twoFactorRoles) {}
 }

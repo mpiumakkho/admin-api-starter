@@ -67,7 +67,7 @@ provideUserManagement({ api: HttpAdminApi, apiUrl: '/api', liveUpdates: true }),
 | `AC_ALLOWED_ORIGINS` | origin ของ dashboard (ใช้ทั้ง CORS และตรวจ `Origin` ของ endpoint ที่ใช้ cookie) |
 | `AC_TRUSTED_PROXIES` | IP ของ reverse proxy ที่อยู่หน้าแอป เป็น regular expression เช่น `10\.0\.0\.5` หรือ `10\.0\.0\.5\|10\.0\.0\.6` มีแต่ address เหล่านี้ที่บอก IP ของผู้ใช้ผ่าน `X-Forwarded-For` ได้ ถ้าไม่ตั้งแอปจะไม่ start ดู OPERATIONS.md หัวข้อ reverse proxy (P-040) |
 | `AC_DASHBOARD_URL`, `AC_MAIL_FROM`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` | ลิงก์ในอีเมลและ SMTP เซิร์ฟเวอร์อีเมลต้องรองรับ STARTTLS ด้วยใบรับรองที่ตรงกับ `MAIL_HOST` ไม่อย่างนั้นส่งอีเมลไม่ได้ (P-041) |
-| `ACCESS_CONTROL_BOOTSTRAP_ADMIN_EMAIL`, `ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD` | ผู้ดูแลคนแรก (ใช้เฉพาะตอนที่ยังไม่มีผู้ใช้เลย) |
+| `ACCESS_CONTROL_BOOTSTRAP_ADMIN_EMAIL`, `ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD` | ผู้ดูแลคนแรก (ใช้เฉพาะตอนที่ยังไม่มีผู้ใช้เลย) การติดตั้งใหม่บังคับ two-step sign-in กับบทบาท Administrator (`access-control.bootstrap.two-factor-roles`) ผู้ดูแลคนแรกจึงต้องเปิดด้วยแอป authenticator ตอนเข้าสู่ระบบครั้งแรกก่อนทำอย่างอื่น (P-042) |
 | `AC_TIME_ZONE` | เขตเวลาขององค์กร ไม่ตั้งก็ได้ (ค่าเริ่มต้น `Asia/Bangkok`) ใช้กับเวลาในอีเมลและชั่วโมงที่งานตอนกลางคืนรัน (P-030) |
 
 image จาก `docker/Dockerfile` ตั้ง `SPRING_PROFILES_ACTIVE=prod` ไว้ในตัว ไม่ต้องส่งเอง ถ้ารัน jar ตรงๆ ต้องใส่ `--spring.profiles.active=prod` เอง ไม่อย่างนั้นแอปจะรันด้วยค่าของโหมดพัฒนาและเตือนใน log ว่า `Encrypting with the development key …`
