@@ -347,3 +347,12 @@
   - API (`SecurityConfig`) ส่ง `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` และ `Referrer-Policy: no-referrer` เพิ่มจากที่ Spring Security ส่งอยู่แล้ว (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Cache-Control: no-store` และ HSTS เมื่อคำขอมาทาง HTTPS ซึ่งหลัง proxy ต้องตั้ง `X-Forwarded-Proto` ให้ถูก) API ตอบแค่ JSON กับ event stream จึงไม่มีอะไรต้องอนุญาต
   - หน้าเว็บทั้งสองมี `deploy/nginx.conf` ที่เสิร์ฟ build และส่ง CSP ของหน้าเว็บ (`script-src 'self'` ไม่มี inline script: script เลือกธีมก่อนแสดงผลย้ายไปเป็นไฟล์ `public/theme.js` และ admin-ng-starter ปิด `inlineCritical` ใน `angular.json` เพราะต้องใช้ inline script), `frame-ancestors 'none'`, `Referrer-Policy: no-referrer`, `nosniff` และ HSTS ทดสอบโดยรัน e2e ทั้งชุดของทั้งสองแอปกับ demo build ที่ nginx เสิร์ฟด้วย config นี้ ผ่านครบโดยไม่มีรายงานการละเมิด CSP
 - Consequences: ถ้าวาง API กับหน้าเว็บคนละ origin ต้องเพิ่ม origin ของ API ใน `connect-src` ของหน้าเว็บ hosting อื่นที่ไม่ใช่ nginx ต้องตั้ง header ชุดเดียวกันเอง
+
+## P-039 จำกัดขนาด body ก่อนอ่าน และรูปโปรไฟล์ต้องเป็นรูปภาพใน data URL เท่านั้น
+
+- Context: การตรวจความปลอดภัยตาม OWASP ASVS 5.0 (V5.2.1, V5.2.2, V2.2.1, V1.2.2, V1.3.4) พบว่าไม่มีเพดานขนาด body ก่อนที่ Jackson จะอ่าน และการอ่านกับ `@Valid` ทำก่อน `@PreAuthorize` `POST /auth/login` จึงรับ body ขนาดเท่าไรก็ได้โดยไม่ต้องเข้าสู่ระบบ และ `POST /users/import` รับได้ถึงราว 2 GB (1,000 แถว แถวละรูป 2 ล้านตัวอักษร) ส่วน `avatar` ตรวจแค่ความยาว จึงเป็นลิงก์ภายนอก (เบราว์เซอร์ของทุกคนที่เปิดดูจะไปโหลดและเผย IP) หรือ SVG ได้ และ `PATCH /users/:id` ยอมให้ชื่อและแผนกว่าง
+- Decision:
+  - `RequestSizeFilter` อยู่ต่อจาก `RequestContextFilter` ปฏิเสธ body ที่ใหญ่เกิน `access-control.requests.max-body` (1 MB) ด้วย `400 invalid_request` ทันทีจาก Content-Length และสำหรับ body แบบ chunked ที่ไม่บอกความยาว จะล้มเมื่ออ่านเกิน ยกเว้น `POST /users/import` ที่ได้ `max-import-body` (5 MB)
+  - `@Avatar` รับค่าว่าง (ไม่มีรูป) หรือ data URL แบบ base64 ของ `image/jpeg`, `image/png` หรือ `image/webp` ยาวไม่เกิน 100,000 ตัวอักษร ที่ถอด base64 ได้ และ byte แรกตรงกับชนิดที่บอก แอปทั้งสองส่ง JPEG ขนาด 160 pixel ซึ่งเล็กกว่านั้นมาก
+  - `firstName`, `lastName` และ `department` ใน `PATCH /users/:id` ละไว้ได้ แต่ส่งเป็นค่าว่างไม่ได้ เหมือนตอนสร้าง
+- Consequences: ผู้ใช้เดิมที่มีรูปเป็นลิงก์หรือใหญ่เกินยังเก็บไว้ได้จนกว่าจะเปลี่ยน หน้าเว็บทั้งสองตรวจขนาดไฟล์ CSV ก่อนอ่าน และตรวจรูปแบบรูปโปรไฟล์เหมือนกันในข้อมูลตัวอย่าง

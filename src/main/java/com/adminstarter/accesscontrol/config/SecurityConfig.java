@@ -7,6 +7,7 @@ import com.adminstarter.accesscontrol.identity.service.UserService;
 import com.adminstarter.accesscontrol.security.PermissionAuthenticationConverter;
 import com.adminstarter.accesscontrol.security.RateLimitFilter;
 import com.adminstarter.accesscontrol.security.RequestContextFilter;
+import com.adminstarter.accesscontrol.security.RequestSizeFilter;
 import com.adminstarter.accesscontrol.security.SecurityProblemHandler;
 import com.adminstarter.accesscontrol.security.TwoFactorSetupFilter;
 import jakarta.servlet.DispatcherType;
@@ -76,6 +77,8 @@ public class SecurityConfig {
                         .authenticationEntryPoint(problems)
                         .accessDeniedHandler(problems))
                 .addFilterBefore(requestContext, DisableEncodeUrlFilter.class)
+                // Before anything reads the body (P-039)
+                .addFilterAfter(new RequestSizeFilter(properties, problems), RequestContextFilter.class)
                 .addFilterAfter(new RateLimitFilter(properties, problems), RequestContextFilter.class)
                 // Once the token says who it is: a role that requires two-step sign-in holds everything else back
                 .addFilterAfter(new TwoFactorSetupFilter(problems), BearerTokenAuthenticationFilter.class);

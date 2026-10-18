@@ -5,6 +5,7 @@ import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.util.unit.DataSize;
 
 /**
  * Every setting of the foundation, under {@code access-control.*}. The defaults are the ones API.md describes;
@@ -29,7 +30,8 @@ public record AccessControlProperties(
         @DefaultValue Audit audit,
         @DefaultValue Mail mail,
         @DefaultValue Encryption encryption,
-        @DefaultValue Bootstrap bootstrap) {
+        @DefaultValue Bootstrap bootstrap,
+        @DefaultValue Requests requests) {
 
     /**
      * For {@code @Scheduled(cron = …, zone = TIME_ZONE)}: a job runs at the hour its cron says in {@link #timeZone()},
@@ -75,6 +77,14 @@ public record AccessControlProperties(
 
     /** Origins of the dashboard, for CORS and for the Origin check on the cookie endpoints */
     public record Cors(@DefaultValue List<String> allowedOrigins) {}
+
+    /**
+     * The largest request body read (P-039): {@code maxBody} for every request but importing users, which may bring
+     * {@code maxImportBody} (1,000 rows)
+     */
+    public record Requests(
+            @DefaultValue("1MB") DataSize maxBody,
+            @DefaultValue("5MB") DataSize maxImportBody) {}
 
     /** Requests per minute from one IP address */
     public record RateLimit(

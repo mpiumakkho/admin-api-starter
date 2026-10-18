@@ -18,10 +18,12 @@ public final class UpdateUserRequest {
 
     @JsonProperty
     @Size(max = 100)
+    @Pattern(regexp = CreateUserRequest.NOT_BLANK)
     private @Nullable String firstName;
 
     @JsonProperty
     @Size(max = 100)
+    @Pattern(regexp = CreateUserRequest.NOT_BLANK)
     private @Nullable String lastName;
 
     @JsonProperty
@@ -35,6 +37,7 @@ public final class UpdateUserRequest {
 
     @JsonProperty
     @Size(max = 100)
+    @Pattern(regexp = CreateUserRequest.NOT_BLANK)
     private @Nullable String department;
 
     private boolean branchIdSent;
@@ -45,7 +48,7 @@ public final class UpdateUserRequest {
     private @Nullable String status;
 
     @JsonProperty
-    @Size(max = CreateUserRequest.AVATAR_MAX)
+    @CreateUserRequest.Avatar
     private @Nullable String avatar;
 
     private boolean languageSent;
