@@ -307,3 +307,11 @@
   - ไม่สุ่มรหัสผ่านอีก เลือกแบบนี้แทนการส่งคำเชิญทางอีเมล เพราะคำเชิญที่หมดอายุก่อนผู้ดูแลคนแรกกดจะไม่มีใครส่งใหม่ให้ได้
   - เมื่อมีผู้ใช้แล้ว ค่านี้ไม่ถูกใช้ เปลี่ยนรหัสผ่านต่อจากนั้นทำในแอปตามปกติ
 - Consequences: การ start ครั้งแรกโดยไม่ตั้งตัวแปรนี้จะล้มเหลวแทนที่จะได้รหัสสุ่ม README บอกให้ตั้งอยู่แล้ว (`ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD=change-me-123 ./mvnw spring-boot:run`) ผู้ดูแลระบบควรเปลี่ยนรหัสนี้หลังเข้าสู่ระบบครั้งแรก และลบตัวแปรออกจากการ deploy เมื่อไม่ใช้แล้ว
+
+## P-034 image ของ docker รันด้วย profile `prod` เสมอ และ profile `prod` ไม่ยอมใช้กุญแจเข้ารหัสของโหมดพัฒนา (ต่อจาก P-014)
+
+- Context: การตรวจความปลอดภัยตาม OWASP ASVS 5.0 (V13.3.1, V15.2.3) พบว่า `docker/Dockerfile` ไม่ได้ตั้ง profile ไว้ในตัว มีแค่คอมเมนต์บอกให้ส่ง `-e SPRING_PROFILES_ACTIVE=prod` ตอนรัน ถ้าลืม แอปจะรันด้วย `application.yml` ของโหมดพัฒนา ซึ่งมีกุญแจเข้ารหัส secret ของ two-step sign-in ที่เผยแพร่อยู่ใน repo, cookie ที่ไม่ Secure และ JWT key ที่สุ่มใหม่ทุกครั้งที่ start โดยไม่มีอะไรหยุดไว้
+- Decision:
+  - `docker/Dockerfile` ตั้ง `ENV SPRING_PROFILES_ACTIVE=prod` ใน image ที่ใช้รัน
+  - `EncryptionConfig.check` ไม่ยอม start ใน profile `prod` เมื่อ password หรือ salt ตรงกับค่าของโหมดพัฒนาใน `application.yml` และเตือนใน log ทุกครั้งที่ใช้ค่านั้นนอก `prod`
+- Consequences: deploy ด้วย image นี้ได้ค่าของ production เสมอ ถ้าขาดตัวแปรที่ `application-prod.yml` ต้องการ แอปจะไม่ start แทนที่จะรันด้วยค่าตัวอย่าง ส่วนการรัน jar ตรงๆ ยังต้องใส่ profile เอง และจะเห็นคำเตือนใน log ถ้าลืม

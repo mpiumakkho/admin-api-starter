@@ -63,11 +63,13 @@ provideUserManagement({ api: HttpAdminApi, apiUrl: '/api', liveUpdates: true }),
 |---|---|
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | PostgreSQL |
 | `AC_JWT_KID`, `AC_JWT_PRIVATE_KEY`, `AC_JWT_PUBLIC_KEY` | key สำหรับเซ็น token ใช้ `tools/gen-keys.sh` สร้าง ถ้าไม่ตั้งไว้ ทุกครั้งที่ restart ทุกคนต้อง refresh token ใหม่ และแต่ละ instance จะมี key ของตัวเอง |
-| `AC_ENCRYPTION_PASSWORD`, `AC_ENCRYPTION_SALT` | key สำหรับเข้ารหัส secret ของ two-step sign-in ใน DB (P-014) สร้างครั้งเดียวด้วย `tools/gen-keys.sh` แล้วเก็บไว้ตลอด ถ้าเปลี่ยน secret ที่เก็บไว้จะอ่านไม่ได้ ถ้าไม่ตั้งไว้ แอปจะไม่ start |
+| `AC_ENCRYPTION_PASSWORD`, `AC_ENCRYPTION_SALT` | key สำหรับเข้ารหัส secret ของ two-step sign-in ใน DB (P-014) สร้างครั้งเดียวด้วย `tools/gen-keys.sh` แล้วเก็บไว้ตลอด ถ้าเปลี่ยน secret ที่เก็บไว้จะอ่านไม่ได้ ถ้าไม่ตั้งไว้ หรือตั้งเป็นค่าของโหมดพัฒนาใน `application.yml` แอปจะไม่ start (P-034) |
 | `AC_ALLOWED_ORIGINS` | origin ของ dashboard (ใช้ทั้ง CORS และตรวจ `Origin` ของ endpoint ที่ใช้ cookie) |
 | `AC_DASHBOARD_URL`, `AC_MAIL_FROM`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` | ลิงก์ในอีเมลและ SMTP |
 | `ACCESS_CONTROL_BOOTSTRAP_ADMIN_EMAIL`, `ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD` | ผู้ดูแลคนแรก (ใช้เฉพาะตอนที่ยังไม่มีผู้ใช้เลย) |
 | `AC_TIME_ZONE` | เขตเวลาขององค์กร ไม่ตั้งก็ได้ (ค่าเริ่มต้น `Asia/Bangkok`) ใช้กับเวลาในอีเมลและชั่วโมงที่งานตอนกลางคืนรัน (P-030) |
+
+image จาก `docker/Dockerfile` ตั้ง `SPRING_PROFILES_ACTIVE=prod` ไว้ในตัว ไม่ต้องส่งเอง ถ้ารัน jar ตรงๆ ต้องใส่ `--spring.profiles.active=prod` เอง ไม่อย่างนั้นแอปจะรันด้วยค่าของโหมดพัฒนาและเตือนใน log ว่า `Encrypting with the development key …`
 
 ค่าอื่น ๆ (อายุ token, lockout, rate limit, จำนวน activity สูงสุดที่ตอบ) อยู่ใน `AccessControlProperties` ส่วนกฎของบัญชี (ความยาวและประวัติรหัสผ่าน, role ที่ต้องใช้ two-step sign-in, ระยะเก็บ activity) ตั้งในหน้าตั้งค่า (`PATCH /api/settings`) ไม่ใช่ config (P-016–P-018)
 
