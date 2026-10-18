@@ -26,4 +26,12 @@ class ProductionConfigTest {
         assertThat(production.getProperty("server.forward-headers-strategy")).isEqualTo("native");
         assertThat(production.getProperty("server.tomcat.remoteip.internal-proxies")).hasToString("${AC_TRUSTED_PROXIES}");
     }
+
+    @Test
+    void mail_goes_over_tls_to_a_server_whose_certificate_is_checked_or_not_at_all() {
+        // Without starttls.required, a server or anyone in between that offers no STARTTLS gets the links in the clear
+        assertThat(production.getProperty("spring.mail.properties.mail.smtp.starttls.enable")).isEqualTo(true);
+        assertThat(production.getProperty("spring.mail.properties.mail.smtp.starttls.required")).isEqualTo(true);
+        assertThat(production.getProperty("spring.mail.properties.mail.smtp.ssl.checkserveridentity")).isEqualTo(true);
+    }
 }

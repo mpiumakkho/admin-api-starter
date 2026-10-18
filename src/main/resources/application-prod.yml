@@ -1,6 +1,7 @@
 # Production: only what differs from application.yml. Every secret comes from the environment.
 spring:
   datasource:
+    # With sslmode=verify-full, or the server does not start (DatabaseTlsConfig, P-041)
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
@@ -11,7 +12,11 @@ spring:
     password: ${MAIL_PASSWORD:}
     properties:
       mail.smtp.auth: true
+      # TLS or no mail: never the links in invitations and resets in the clear, and the server's certificate checked
+      # (P-041)
       mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
+      mail.smtp.ssl.checkserveridentity: true
 
 server:
   # Behind a reverse proxy: take the client's address and scheme from X-Forwarded-*

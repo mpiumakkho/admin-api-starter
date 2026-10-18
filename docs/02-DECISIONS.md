@@ -362,3 +362,11 @@
 - Context: การตรวจความปลอดภัยตาม OWASP ASVS 5.0 (V4.1.3) พบว่า `application-prod.yml` ใช้ `forward-headers-strategy: native` แต่ไม่ได้ระบุ `server.tomcat.remoteip.internal-proxies` Tomcat จึงใช้ค่าเริ่มต้นที่เชื่อทุก address ในช่วง private เครื่องในเครือข่ายภายในที่เข้าถึงพอร์ตของแอปได้ตรงๆ จึงส่ง `X-Forwarded-For` ปลอมเพื่อหลบ rate limit ต่อ IP ทำให้ lockout แบบ smart lockout (P-035) เห็นเป็น address คุ้นเคย และทำให้ IP ใน activity log กับรายการอุปกรณ์เชื่อไม่ได้
 - Decision: `server.tomcat.remoteip.internal-proxies` มาจาก `AC_TRUSTED_PROXIES` ซึ่งไม่มีค่าเริ่มต้น ถ้าไม่ตั้งแอปไม่ start (`ProductionConfigTest` กันไม่ให้ค่านี้หายไปจาก `application-prod.yml`) OPERATIONS.md บอกว่า proxy ต้องเขียนทับ `X-Forwarded-For` และพอร์ต 8080 ต้องเข้าถึงได้จาก proxy เท่านั้น `deploy/nginx.conf` ของหน้าเว็บทั้งสองทำแบบนั้นอยู่แล้ว
 - Consequences: การติดตั้งเดิมต้องเพิ่ม `AC_TRUSTED_PROXIES` ก่อนอัปเกรด ถ้าตั้งผิด (proxy ไม่อยู่ในรายการ) ทุกคำขอจะดูเหมือนมาจาก IP ของ proxy rate limit จะนับรวมทุกคน ให้ตรวจจาก IP ในรายการอุปกรณ์หลังอัปเกรด
+
+## P-041 ต่อฐานข้อมูลและเซิร์ฟเวอร์อีเมลผ่าน TLS ที่ตรวจใบรับรองเท่านั้น
+
+- Context: การตรวจความปลอดภัยตาม OWASP ASVS 5.0 (V12.3.1, V12.3.2) พบว่า SMTP เปิด `starttls.enable` แต่ไม่ได้ตั้ง `starttls.required` เซิร์ฟเวอร์ (หรือใครก็ตามที่อยู่ระหว่างทาง) ที่ไม่เสนอ STARTTLS จึงได้ลิงก์คำเชิญและลิงก์รีเซ็ตรหัสผ่านแบบไม่เข้ารหัส ส่วนฐานข้อมูลไม่มีอะไรบังคับ `sslmode` ค่าเริ่มต้นของ driver (`prefer`) ตกไปเป็นแบบไม่เข้ารหัสได้เงียบๆ และไม่ตรวจใบรับรอง
+- Decision:
+  - `application-prod.yml` ตั้ง `mail.smtp.starttls.required: true` และ `mail.smtp.ssl.checkserveridentity: true` ส่งไม่ได้ดีกว่าส่งแบบไม่เข้ารหัส (`ProductionConfigTest` กันไม่ให้ค่าเหล่านี้หายไป)
+  - `DatabaseTlsConfig` ทำให้ profile `prod` ไม่ start ถ้า `spring.datasource.url` ไม่มี `sslmode=verify-full` ซึ่งเข้ารหัสและตรวจทั้งใบรับรองและชื่อเครื่อง โหมดพัฒนาใช้ฐานข้อมูลใน docker บนเครื่องตัวเองได้ตามเดิม
+- Consequences: การติดตั้งเดิมต้องเพิ่ม `sslmode=verify-full` ใน `DB_URL` และเปิด TLS ที่ PostgreSQL ก่อนอัปเกรด ถ้าใบรับรองออกโดย CA ภายใน ต้องให้ `sslrootcert` ชี้ไปที่ใบรับรองของ CA นั้น เซิร์ฟเวอร์อีเมลที่ไม่รองรับ STARTTLS จะส่งไม่ได้และ log `Could not send …` (OPERATIONS.md)
