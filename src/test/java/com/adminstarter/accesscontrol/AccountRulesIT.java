@@ -173,6 +173,16 @@ class AccountRulesIT extends ApiIntegrationTest {
     }
 
     @Test
+    void a_new_password_is_none_of_the_most_used_and_holds_neither_the_product_nor_the_person() {
+        var user = newUser("Viewer", "first-pass-1");
+        // newUser makes "Test User", user-…@example.com; the product is "Admin"
+        for (var password : List.of("iloveyou1", "Password123", "test-and-more", "admin-rules-1", "my-example-9")) {
+            assertRefused(changePassword(user, "first-pass-1", password), HttpStatus.UNPROCESSABLE_CONTENT, "weak_password");
+        }
+        assertThat(changePassword(user, "first-pass-1", "lantern-orbit-71")).hasStatus(HttpStatus.NO_CONTENT);
+    }
+
+    @Test
     void a_recent_password_cannot_be_chosen_again() {
         var admin = admin();
         var user = newUser("Viewer", "password-one");

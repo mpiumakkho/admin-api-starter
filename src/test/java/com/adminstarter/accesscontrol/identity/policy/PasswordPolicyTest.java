@@ -14,8 +14,27 @@ class PasswordPolicyTest {
     @Test
     void a_password_must_be_as_long_as_the_settings_say() {
         assertThatThrownBy(() -> PasswordPolicy.check("1234567", 8)).extracting("code").isEqualTo(ErrorCode.WEAK_PASSWORD);
-        assertThatCode(() -> PasswordPolicy.check("12345678", 8)).doesNotThrowAnyException();
+        assertThatCode(() -> PasswordPolicy.check("kite-ran", 8)).doesNotThrowAnyException();
         assertThatThrownBy(() -> PasswordPolicy.check("12345678901", 12)).extracting("code").isEqualTo(ErrorCode.WEAK_PASSWORD);
+    }
+
+    @Test
+    void a_password_is_none_of_the_most_used_case_aside() {
+        for (var password : List.of("password", "Password1", "12345678", "iloveyou", "QWERTYUIOP", "1q2w3e4r")) {
+            assertThatThrownBy(() -> PasswordPolicy.check(password, 8)).extracting("code").isEqualTo(ErrorCode.WEAK_PASSWORD);
+        }
+        assertThatCode(() -> PasswordPolicy.check("lantern-orbit-71", 8)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void a_password_holds_no_word_of_the_system_or_of_the_person() {
+        var words = PasswordPolicy.contextWords("Admin", "Somchai", "Ng", "somchai.k@acme-corp.co.th");
+        assertThat(words).containsExactlyInAnyOrder("admin", "somchai", "acme", "corp");
+        for (var password : List.of("SOMCHAI-2026!", "my-admin-pass", "acme-and-more-9")) {
+            assertThatThrownBy(() -> PasswordPolicy.check(password, 8, words)).extracting("code").isEqualTo(ErrorCode.WEAK_PASSWORD);
+        }
+        // Words shorter than four letters are in too many passwords to count: "ng", "co", "th", "k"
+        assertThatCode(() -> PasswordPolicy.check("thong-kite-river", 8, words)).doesNotThrowAnyException();
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.adminstarter.accesscontrol.identity.service;
 
 import static com.adminstarter.accesscontrol.common.constant.ErrorCode.INVALID_CREDENTIALS;
 
+import com.adminstarter.accesscontrol.AccessControlProperties;
 import com.adminstarter.accesscontrol.common.context.Actor;
 import com.adminstarter.accesscontrol.common.exception.AccessControlException;
 import com.adminstarter.accesscontrol.identity.entity.PreviousPassword;
@@ -37,12 +38,15 @@ public class CredentialServiceImpl implements CredentialService {
     private final RecoveryCodeService recoveryCodes;
     private final ApplicationEventPublisher events;
     private final Clock clock;
+    /** A word of the system, which a password may not hold (P-043) */
+    private final String productName;
     /** Checked against when there is no real hash, to spend the same time */
     private final String decoyHash;
 
     public CredentialServiceImpl(UserCredentialRepository credentials, PreviousPasswordRepository previousPasswords,
             UserAccessService access, SettingsService settings, PasswordEncoder encoder, LockoutPolicy lockoutPolicy,
-            TotpService totp, RecoveryCodeService recoveryCodes, ApplicationEventPublisher events, Clock clock) {
+            TotpService totp, RecoveryCodeService recoveryCodes, ApplicationEventPublisher events, Clock clock,
+            AccessControlProperties properties) {
         this.credentials = credentials;
         this.previousPasswords = previousPasswords;
         this.access = access;
@@ -53,6 +57,7 @@ public class CredentialServiceImpl implements CredentialService {
         this.recoveryCodes = recoveryCodes;
         this.events = events;
         this.clock = clock;
+        this.productName = properties.productName();
         this.decoyHash = encoder.encode(UUID.randomUUID().toString());
     }
 
@@ -163,11 +168,14 @@ public class CredentialServiceImpl implements CredentialService {
 
     /**
      * The password rules of the settings (weak_password, password_reused), then the new password; the one it
-     * replaces goes into the history.
+     * replaces goes into the history. Nor may it be a most used password or hold the product's name or the person's
+     * (P-043).
      */
     private void replacePassword(UserCredential credential, String password) {
         var rules = settings.current();
-        PasswordPolicy.check(password, rules.passwordMinLength());
+        var user = access.find(credential.getUserId());
+        PasswordPolicy.check(password, rules.passwordMinLength(),
+                PasswordPolicy.contextWords(productName, user.getFirstName(), user.getLastName(), user.getEmail()));
         var earlier = previousPasswords.findByUserIdOrderByCreatedAtDescIdDesc(credential.getUserId());
         var recent = PasswordPolicy.recentHashes(credential.getPasswordHash(),
                 earlier.stream().map(PreviousPassword::getPasswordHash).toList(), rules.passwordHistory());
