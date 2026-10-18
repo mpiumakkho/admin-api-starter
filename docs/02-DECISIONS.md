@@ -339,3 +339,11 @@
   - `expiresAt` ของ session ตั้งครั้งเดียวตอนเข้าสู่ระบบ คือ `access-control.token.refresh-ttl` (12 ชั่วโมง) หรือ `remember-ttl` (30 วัน) การ refresh ไม่เลื่อนมัน refresh token ใหม่หมดอายุพร้อม session และ cookie แบบ remember มี Max-Age เท่าเวลาที่เหลือ 12 ชั่วโมงตรงกับที่ NIST SP 800-63B (rev. 3, 4.2.3) กำหนดให้ AAL2 ยืนยันตัวตนใหม่
   - การติดตั้งใหม่ตั้ง `sessionTimeoutMinutes` เป็น 30 (`SettingsInitializer` และ `DEFAULT_SETTINGS` ใน `catalog.ts` ของทั้งสองแอป) ตาม idle timeout ของ AAL2 ใน NIST SP 800-63B การติดตั้งเดิมคงค่าที่ผู้ดูแลตั้งไว้
 - Consequences: คนที่ทำงานต่อเนื่องเกิน 12 ชั่วโมงต้องเข้าสู่ระบบใหม่ และคนที่เลือก remember ต้องเข้าสู่ระบบใหม่ทุก 30 วัน ไม่มี migration เพราะ `createdAt` และ `expiresAt` มีอยู่แล้ว session ที่เปิดอยู่ตอนอัปเกรดจบตาม `expiresAt` ล่าสุดที่ถูกเลื่อนไว้
+
+## P-038 header ป้องกันของเบราว์เซอร์: API ส่ง CSP ที่ไม่อนุญาตอะไรเลย และหน้าเว็บมี config ของ web server ที่ส่ง CSP ของตัวเอง
+
+- Context: การตรวจความปลอดภัยตาม OWASP ASVS 5.0 (V3.4.1, V3.4.3 ถึง V3.4.6) พบว่าทั้ง API และหน้าเว็บทั้งสองไม่ส่ง Content-Security-Policy ไม่มี frame-ancestors และไม่มี Referrer-Policy ถ้ามีช่อง XSS ที่ใดก็ไม่มีชั้นกันที่สอง หน้าเว็บถูกฝังใน iframe เพื่อหลอกให้กดได้ และ token ในลิงก์อีเมลอาจรั่วไปกับ Referer
+- Decision:
+  - API (`SecurityConfig`) ส่ง `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` และ `Referrer-Policy: no-referrer` เพิ่มจากที่ Spring Security ส่งอยู่แล้ว (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Cache-Control: no-store` และ HSTS เมื่อคำขอมาทาง HTTPS ซึ่งหลัง proxy ต้องตั้ง `X-Forwarded-Proto` ให้ถูก) API ตอบแค่ JSON กับ event stream จึงไม่มีอะไรต้องอนุญาต
+  - หน้าเว็บทั้งสองมี `deploy/nginx.conf` ที่เสิร์ฟ build และส่ง CSP ของหน้าเว็บ (`script-src 'self'` ไม่มี inline script: script เลือกธีมก่อนแสดงผลย้ายไปเป็นไฟล์ `public/theme.js` และ admin-ng-starter ปิด `inlineCritical` ใน `angular.json` เพราะต้องใช้ inline script), `frame-ancestors 'none'`, `Referrer-Policy: no-referrer`, `nosniff` และ HSTS ทดสอบโดยรัน e2e ทั้งชุดของทั้งสองแอปกับ demo build ที่ nginx เสิร์ฟด้วย config นี้ ผ่านครบโดยไม่มีรายงานการละเมิด CSP
+- Consequences: ถ้าวาง API กับหน้าเว็บคนละ origin ต้องเพิ่ม origin ของ API ใน `connect-src` ของหน้าเว็บ hosting อื่นที่ไม่ใช่ nginx ต้องตั้ง header ชุดเดียวกันเอง

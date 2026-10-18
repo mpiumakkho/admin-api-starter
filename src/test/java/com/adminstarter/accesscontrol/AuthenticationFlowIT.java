@@ -36,6 +36,22 @@ class AuthenticationFlowIT extends ApiIntegrationTest {
     }
 
     @Test
+    void every_answer_tells_the_browser_to_run_nothing_and_frame_nothing() {
+        var admin = admin();
+        for (var answer : List.of(get("/api/me", admin), mvc.get().uri("/api/users").exchange(),
+                mvc.post().uri("/api/auth/refresh").exchange())) {
+            assertThat(answer).headers()
+                    .hasValue("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+                    .hasValue("X-Frame-Options", "DENY")
+                    .hasValue("X-Content-Type-Options", "nosniff")
+                    .hasValue("Referrer-Policy", "no-referrer");
+        }
+        // Over HTTPS, as behind the proxy, browsers are told to use nothing else
+        assertThat(mvc.get().uri("/api/me").secure(true).header("Authorization", "Bearer " + admin.token()).exchange())
+                .headers().containsHeader("Strict-Transport-Security");
+    }
+
+    @Test
     void the_refresh_cookie_is_http_only_strict_and_limited_to_auth() {
         var cookie = admin().cookie();
         assertThat(cookie.isHttpOnly()).isTrue();
