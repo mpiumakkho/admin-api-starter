@@ -104,7 +104,8 @@ class AccountHygieneIT extends ApiIntegrationTest {
                 Timestamp.class, session)).isEqualTo(ends);
 
         // Once its time is over, the cookie buys nothing, and the person signs in again
-        jdbc.update("update access_control.user_sessions set expires_at = now() - interval '1 second' where id = ?", session);
+        // An hour ago, so a database clock a little off the server's does not matter
+        jdbc.update("update access_control.user_sessions set expires_at = now() - interval '1 hour' where id = ?", session);
         assertThat(refresh(refreshed.getResponse().getCookie(COOKIE))).hasStatus(HttpStatus.UNAUTHORIZED);
         assertThat(get("/api/me", user)).hasStatus(HttpStatus.UNAUTHORIZED);
     }
