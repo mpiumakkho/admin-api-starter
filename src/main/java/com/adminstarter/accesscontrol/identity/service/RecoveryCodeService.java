@@ -62,7 +62,12 @@ public class RecoveryCodeService {
         }
         for (var candidate : codes.findByUserIdAndUsedAtIsNull(userId)) {
             if (encoder.matches(typed, candidate.getCodeHash())) {
-                candidate.use(clock.instant());
+                // Used up in the database first, so two requests with the same code cannot both get through (P-036)
+                var now = clock.instant();
+                if (codes.useUp(candidate.getId(), now) == 0) {
+                    return false;
+                }
+                candidate.use(now);
                 return true;
             }
         }

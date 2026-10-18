@@ -9,6 +9,7 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.OptionalLong;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.stereotype.Service;
@@ -48,17 +49,27 @@ public class TotpService {
 
     /** Whether a code matches now, or one step either side, since phone clocks drift */
     public boolean verify(String secret, String code) {
+        return matchedStep(secret, code).isPresent();
+    }
+
+    /**
+     * The 30-second step a code matches, now or one step either side, since phone clocks drift; to accept each step
+     * once (P-036)
+     */
+    public OptionalLong matchedStep(String secret, String code) {
         var typed = code.replaceAll("\\s", "");
         if (!typed.matches("\\d{" + DIGITS + "}")) {
-            return false;
+            return OptionalLong.empty();
         }
         var counter = clock.instant().getEpochSecond() / STEP_SECONDS;
         var key = fromBase32(secret);
-        var matched = false;
+        var matched = OptionalLong.empty();
         for (var step = -1; step <= 1; step++) {
             // Compare every step in constant time, so timing says nothing about which one matched
-            matched |= MessageDigest.isEqual(code(key, counter + step).getBytes(StandardCharsets.US_ASCII),
-                    typed.getBytes(StandardCharsets.US_ASCII));
+            if (MessageDigest.isEqual(code(key, counter + step).getBytes(StandardCharsets.US_ASCII),
+                    typed.getBytes(StandardCharsets.US_ASCII))) {
+                matched = OptionalLong.of(counter + step);
+            }
         }
         return matched;
     }

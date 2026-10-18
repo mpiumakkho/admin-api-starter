@@ -20,6 +20,7 @@ import com.adminstarter.accesscontrol.identity.policy.SelfProtectionPolicy;
 import com.adminstarter.accesscontrol.identity.repository.UserCredentialRepository;
 import com.adminstarter.accesscontrol.settings.service.SettingsService;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.cache.annotation.CacheEvict;
@@ -85,10 +86,12 @@ public class TwoFactorService {
             throw INVALID_REQUEST.exception();
         }
         var pending = credential.getPendingTwoFactorSecret();
-        if (pending == null || !totp.verify(pending, code)) {
+        var step = pending == null ? OptionalLong.empty() : totp.matchedStep(pending, code);
+        if (step.isEmpty()) {
             throw INVALID_CODE.exception();
         }
-        credential.confirmTwoFactor();
+        // The code that turned it on does not sign in again (P-036)
+        credential.confirmTwoFactor(step.getAsLong());
         var codes = recoveryCodes.replace(actor.userId());
         return new TwoFactorConfirmationResponse(changed(actor, actor.userId(), true), codes);
     }

@@ -146,7 +146,8 @@ class AuthenticationFlowIT extends ApiIntegrationTest {
 
         assertRefused(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", "000000")),
                 HttpStatus.UNAUTHORIZED, "invalid_code");
-        assertThat(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", totp.codeAt(secret, Instant.now()))))
+        // With the code of the step before, as from a phone clock a little behind, so this step's code is left to sign in
+        assertThat(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", totp.codeAt(secret, Instant.now().minusSeconds(30)))))
                 .hasStatusOk().bodyJson().extractingPath("$.user.twoFactor").isEqualTo(true);
         // A copy of the database does not give the secret away (P-014)
         var stored = jdbc.queryForObject("select two_factor_secret from access_control.user_credentials where user_id = ?",
@@ -155,7 +156,12 @@ class AuthenticationFlowIT extends ApiIntegrationTest {
 
         assertRefused(login(email, "first-pass-123", null), HttpStatus.UNAUTHORIZED, "two_factor_required");
         assertRefused(login(email, "first-pass-123", "000000"), HttpStatus.UNAUTHORIZED, "invalid_code");
-        assertThat(login(email, "first-pass-123", totp.codeAt(secret, Instant.now()))).hasStatusOk();
+        var code = totp.codeAt(secret, Instant.now());
+        assertThat(login(email, "first-pass-123", code)).hasStatusOk();
+        // Each code once: seen over someone's shoulder, or caught on the way, it is already spent (P-036)
+        assertRefused(login(email, "first-pass-123", code), HttpStatus.UNAUTHORIZED, "invalid_code");
+        assertRefused(login(email, "first-pass-123", totp.codeAt(secret, Instant.now().minusSeconds(30))),
+                HttpStatus.UNAUTHORIZED, "invalid_code");
 
         // An administrator can turn it off for someone who lost their phone, but not for themselves
         var admin = admin();

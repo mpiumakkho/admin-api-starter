@@ -90,11 +90,21 @@ public class CredentialServiceImpl implements CredentialService {
             return false;
         }
         var secret = credential.getTwoFactorSecret();
-        if (secret != null && (totp.verify(secret, code) || usedRecoveryCode(userId, code))) {
+        if (secret != null && (usedTotpCode(credential, secret, code) || usedRecoveryCode(userId, code))) {
             return true;
         }
         failed(credential, familiar);
         return false;
+    }
+
+    /** A code from the app, each step of them accepted once, so a code seen over someone's shoulder is spent (P-036) */
+    private boolean usedTotpCode(UserCredential credential, String secret, String code) {
+        var step = totp.matchedStep(secret, code);
+        if (step.isEmpty() || credentials.useTotpStep(credential.getUserId(), step.getAsLong()) == 0) {
+            return false;
+        }
+        credential.usedTotpStep(step.getAsLong());
+        return true;
     }
 
     /** One of their recovery codes instead of a code from the app (P-025): used up, and logged with how many are left */

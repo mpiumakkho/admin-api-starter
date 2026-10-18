@@ -39,6 +39,8 @@ public class UserCredential {
     /** Base32 TOTP secret; set while two-step sign-in is on. Encrypted in the column. */
     @Convert(converter = EncryptedSecretConverter.class)
     private @Nullable String twoFactorSecret;
+    /** The step of the last code from the app that was accepted: no code of that step or before works again (P-036) */
+    private @Nullable Long lastTotpStep;
     /** A new secret waiting for its first code. Encrypted in the column. */
     @Convert(converter = EncryptedSecretConverter.class)
     private @Nullable String pendingTwoFactorSecret;
@@ -101,14 +103,22 @@ public class UserCredential {
         this.pendingTwoFactorSecret = secret;
     }
 
-    public void confirmTwoFactor() {
+    /** On, with the step of the code that confirmed it, which then works no more */
+    public void confirmTwoFactor(long step) {
         this.twoFactorSecret = pendingTwoFactorSecret;
         this.pendingTwoFactorSecret = null;
+        this.lastTotpStep = step;
     }
 
     public void turnOffTwoFactor() {
         this.twoFactorSecret = null;
         this.pendingTwoFactorSecret = null;
+        this.lastTotpStep = null;
+    }
+
+    /** A code of this step was accepted, as the database already says (UserCredentialRepository.useTotpStep) */
+    public void usedTotpStep(long step) {
+        this.lastTotpStep = step;
     }
 
     public UUID getUserId() {

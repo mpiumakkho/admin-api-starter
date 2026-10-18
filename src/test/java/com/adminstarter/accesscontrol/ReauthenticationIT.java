@@ -91,7 +91,8 @@ class ReauthenticationIT extends ApiIntegrationTest {
     void with_two_step_sign_in_on_the_code_is_asked_too() {
         var user = newUser("Viewer", "viewer-pass-1");
         var secret = body(send(HttpMethod.POST, "/api/me/two-factor", user, null)).get("secret").asString();
-        assertThat(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", totp.codeAt(secret, Instant.now()))))
+        // With the code of the step before, so this step's code is left for what comes next (P-036)
+        assertThat(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", totp.codeAt(secret, Instant.now().minusSeconds(30)))))
                 .hasStatusOk();
 
         assertRefused(send(HttpMethod.POST, "/api/me/reauthenticate", user, Map.of("password", "viewer-pass-1")),
@@ -106,7 +107,8 @@ class ReauthenticationIT extends ApiIntegrationTest {
     void an_authenticator_in_use_is_not_replaced_until_two_step_sign_in_is_turned_off_with_a_code() {
         var user = newUser("Viewer", "viewer-pass-1");
         var secret = body(send(HttpMethod.POST, "/api/me/two-factor", user, null)).get("secret").asString();
-        assertThat(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", totp.codeAt(secret, Instant.now()))))
+        // With the code of the step before, so this step's code is left for what comes next (P-036)
+        assertThat(send(HttpMethod.POST, "/api/me/two-factor/confirm", user, Map.of("code", totp.codeAt(secret, Instant.now().minusSeconds(30)))))
                 .hasStatusOk();
 
         // A stolen access token cannot bind the account to another authenticator, nor take new recovery codes

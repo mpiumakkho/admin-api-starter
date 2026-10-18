@@ -8,6 +8,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
@@ -63,6 +66,32 @@ class RecoveryCodesIT extends ApiIntegrationTest {
         assertThat(send(HttpMethod.POST, "/api/me/two-factor/disable", user, Map.of("code", fresh.get(1))))
                 .hasStatusOk().bodyJson().extractingPath("$.twoFactor").isEqualTo(false);
         assertThat(remaining(user)).isZero();
+    }
+
+    @Test
+    void a_code_brought_twice_at_the_same_time_works_once() throws Exception {
+        var user = newUser("Viewer", PASSWORD);
+        var code = turnOn(user).getFirst();
+        var start = new CountDownLatch(1);
+        List<Integer> statuses;
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var tries = IntStream.range(0, 2).mapToObj(attempt -> pool.submit(() -> {
+                start.await();
+                return send(HttpMethod.POST, "/api/me/reauthenticate", user, Map.of("password", PASSWORD, "code", code))
+                        .getResponse().getStatus();
+            })).toList();
+            start.countDown();
+            statuses = tries.stream().map(attempt -> {
+                try {
+                    return attempt.get();
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            }).toList();
+        }
+        // The database lets one of them through (P-036)
+        assertThat(statuses).containsExactlyInAnyOrder(HttpStatus.NO_CONTENT.value(), HttpStatus.UNAUTHORIZED.value());
+        assertThat(remaining(user)).isEqualTo(9);
     }
 
     /** Turns two-step sign-in on, answering its first recovery codes */
