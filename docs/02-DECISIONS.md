@@ -298,3 +298,12 @@
   - `changeOwnPassword` ตรวจรหัสเดิมผ่าน `checkPassword` ซึ่งนับการใส่ผิดและไม่ตรวจรหัสระหว่างล็อก `checkTwoFactorCode` ไม่ตรวจรหัสระหว่างล็อกเช่นกัน
   - `RateLimitFilter` จำกัด `/api/me/password` และ `/api/me/two-factor/disable` ต่อ IP ด้วยค่าเดียวกับการเข้าสู่ระบบ (`access-control.rate-limit.login`)
 - Consequences: การใส่ผิดห้าครั้งที่สอง endpoint นี้ล็อกบัญชีเหมือนการเข้าสู่ระบบ และ `auth.account_locked` ถูกบันทึก (`FailedSignInsIT`) เจ้าของบัญชีที่ใส่รหัสเดิมผิดเองก็ถูกล็อกด้วย ซึ่งเป็นพฤติกรรมเดียวกับหน้าเข้าสู่ระบบ
+
+## P-033 รหัสผ่านของผู้ดูแลคนแรกต้องตั้งเอง ระบบไม่สุ่มแล้วเขียนลง log
+
+- Context: การตรวจความปลอดภัยตาม OWASP ASVS 5.0 (V6.4.1, V14.2.4, V16.2.5) พบว่าเมื่อไม่ได้ตั้ง `access-control.bootstrap.admin-password` `AdminAccountInitializer` สุ่มรหัสผ่านให้ผู้ดูแลคนแรกแล้วเขียนลง log ระดับ WARN เป็นข้อความเปิด รหัสนี้ไม่หมดอายุ และ production เก็บ log แบบ ECS ส่งต่อไปยังระบบรวม log ใครที่อ่าน log ได้จึงได้บัญชีที่มีทุกสิทธิ์ ส่วนรหัสที่ตั้งเองก็ไม่ผ่านกฎรหัสผ่าน
+- Decision:
+  - เมื่อยังไม่มีผู้ใช้เลย `access-control.bootstrap.admin-password` (`ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD`) ต้องมีค่า และยาวอย่างน้อย `passwordMinLength` ของการตั้งค่า ไม่อย่างนั้นแอปไม่ start และบอกว่าต้องตั้งอะไร (`AdminAccountInitializer.passwordFor`) ข้อความ error ไม่มีรหัสผ่าน
+  - ไม่สุ่มรหัสผ่านอีก เลือกแบบนี้แทนการส่งคำเชิญทางอีเมล เพราะคำเชิญที่หมดอายุก่อนผู้ดูแลคนแรกกดจะไม่มีใครส่งใหม่ให้ได้
+  - เมื่อมีผู้ใช้แล้ว ค่านี้ไม่ถูกใช้ เปลี่ยนรหัสผ่านต่อจากนั้นทำในแอปตามปกติ
+- Consequences: การ start ครั้งแรกโดยไม่ตั้งตัวแปรนี้จะล้มเหลวแทนที่จะได้รหัสสุ่ม README บอกให้ตั้งอยู่แล้ว (`ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD=change-me-123 ./mvnw spring-boot:run`) ผู้ดูแลระบบควรเปลี่ยนรหัสนี้หลังเข้าสู่ระบบครั้งแรก และลบตัวแปรออกจากการ deploy เมื่อไม่ใช้แล้ว

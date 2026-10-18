@@ -22,7 +22,7 @@ ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD=change-me-123 ./mvnw spring-boot:run
 ```
 
 - API อยู่ที่ `http://localhost:8080/api`
-- การ start ครั้งแรกจะสร้าง schema, permission 13 ตัว, role 4 ตัว (Administrator, Manager, Support, Viewer) และผู้ดูแลคนแรก `admin@example.com` โดยใช้รหัสจาก `ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD` ถ้าไม่ได้ตั้งไว้ ระบบจะสุ่มรหัสให้และพิมพ์ลง log ครั้งเดียว
+- การ start ครั้งแรกจะสร้าง schema, permission 13 ตัว, role 4 ตัว (Administrator, Manager, Support, Viewer) และผู้ดูแลคนแรก `admin@example.com` โดยใช้รหัสจาก `ACCESS_CONTROL_BOOTSTRAP_ADMIN_PASSWORD` ซึ่งต้องยาวตามกฎรหัสผ่าน (อย่างน้อย 8 ตัว) ถ้ายังไม่มีผู้ใช้และไม่ได้ตั้งไว้ ระบบจะไม่ start และบอกให้ตั้ง (ไม่สุ่มรหัสแล้วพิมพ์ลง log เพราะคนที่อ่าน log ได้มีมากกว่าคนดูแลระบบ)
 - อีเมลทุกฉบับ (เชิญ, รีเซ็ตรหัสผ่าน, แจ้งเตือนเรื่องบัญชี และทบทวนสิทธิ์) ไปอยู่ใน Mailpit: http://localhost:8025
 
 ### ใช้กับ admin-ng-starter

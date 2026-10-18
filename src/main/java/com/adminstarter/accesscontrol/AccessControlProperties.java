@@ -103,7 +103,8 @@ public record AccessControlProperties(
     /**
      * The first administrator, created when there are no users yet.
      *
-     * @param adminPassword empty: a random one, written to the log once
+     * @param adminPassword the first administrator's password, at least the password rules' length; required while there
+     *     are no users, and never written to the log (P-033)
      * @param defaultRole the code of the role new users get, until someone changes it on the settings page
      */
     public record Bootstrap(
