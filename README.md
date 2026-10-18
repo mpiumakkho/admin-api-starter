@@ -77,7 +77,7 @@ provideUserManagement({ api: HttpAdminApi, apiUrl: '/api', liveUpdates: true }),
 |---|---|
 | `./mvnw test` | unit test และ ArchUnit (กติกา module, layer, naming, security, transaction) |
 | `./mvnw verify` | test ทั้งหมดรวม integration test กับ PostgreSQL ใน Testcontainers (ข้ามให้เองถ้าไม่มี Docker) |
-| `python .claude/skills/access-control-project-bootstrapper/scripts/check_structure.py --repo . --side backend` | ตรวจโครงสร้างตาม `contracts/structure.yaml` (รันบน checkout ที่สะอาด ไม่มี `target/`) |
+| `python tools/check_structure.py --repo . --side backend` | ตรวจโครงสร้างตาม `contracts/structure.yaml` (รันบน checkout ที่สะอาด ไม่มี `target/`) |
 | `docker build -f docker/Dockerfile -t admin-api-starter .` | image สำหรับ deploy |
 
 ## รันหลาย instance

@@ -93,8 +93,6 @@ backend:
     - pom.xml
     - mvnw
     - README.md
-    - AGENTS.md
-    - CLAUDE.md
     - UPGRADING.md
     - .gitignore
     - docs/01-OVERVIEW.md

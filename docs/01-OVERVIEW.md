@@ -81,6 +81,6 @@ sequenceDiagram
 ## เพิ่มของใหม่
 
 - **ฟีเจอร์ของงานเฉพาะโปรเจกต์:** ใช้ `tools/new-module.sh` สร้างโมดูลใต้ `app/` แล้วประกาศสิทธิ์ใน `AppPermissions`, ใส่ไฟล์ migration ใน `db/migration/app`, ใส่ `@PreAuthorize` ทุก endpoint และใช้ `Actor.can(permission, branchId)` เมื่อสิทธิ์ขึ้นกับสาขา
-- **เปลี่ยนสัญญา API:** แก้ API.md, `HttpAdminApi`, `localBackend` และระบบหลังบ้านนี้พร้อมกัน แล้วรัน `python tools/api-coverage.py` (AGENTS.md ข้อ 7)
+- **เปลี่ยนสัญญา API:** แก้ API.md, `HttpAdminApi`, `localBackend` และระบบหลังบ้านนี้พร้อมกัน แล้วรัน `python tools/api-coverage.py`
 - **ตัดสินใจเรื่องที่ขัดกับของเดิม:** เพิ่มบันทึกการตัดสินใจข้อใหม่ใน [02-DECISIONS.md](02-DECISIONS.md) ที่อ้างถึงข้อเดิม ห้ามแก้ข้อเดิมเงียบ ๆ
 - **ก่อนบอกว่าเสร็จ:** รันการตรวจโครงสร้างและ `./mvnw verify` (คำสั่งอยู่ใน [README](../README.md))

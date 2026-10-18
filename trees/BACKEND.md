@@ -10,7 +10,7 @@
 admin-api-starter/
 ├── pom.xml                  # spring-boot-starter-parent 4.1.x, java.version 25
 ├── mvnw, mvnw.cmd, .mvn/
-├── README.md  AGENTS.md  CLAUDE.md  UPGRADING.md
+├── README.md  UPGRADING.md
 ├── .gitignore  .editorconfig
 ├── docs/01-OVERVIEW.md      # ภาพรวม: โมดูลต่อกันอย่างไร คำขอและการเปลี่ยนแปลงข้อมูลหนึ่งครั้งผ่านอะไรบ้าง ข้อมูลอยู่ที่ไหน
 ├── docs/02-DECISIONS.md     # ADR ของ template ที่ใช้ + ADR ของโปรเจกต์ (P-xxx)
@@ -18,13 +18,13 @@ admin-api-starter/
 ├── docs/API-COVERAGE.md     # endpoint ของ API.md ที่ server นี้ทำแล้ว สิทธิ์ และ test ที่เรียก (สร้างด้วย tools/api-coverage.py)
 ├── trees/BACKEND.md         # ไฟล์นี้
 ├── contracts/*.yaml         # structure, profile, dependency rules, naming, permissions
-├── .claude/skills/access-control-project-bootstrapper/   # check_structure.py, scaffold.py
 ├── docker/
 │   ├── docker-compose.yml   # postgres:17 (port 5433), mailpit (1025 / 8025)
 │   └── Dockerfile           # eclipse-temurin:25-jdk → 25-jre
 ├── tools/
 │   ├── gen-keys.sh          # คู่ key RS256 สำหรับ access-control.token.keys
 │   ├── new-module.sh        # โครง module ใหม่ใต้ app/
+│   ├── check_structure.py   # ตรวจโครงสร้างตาม contracts/structure.yaml (CI รันทุก push)
 │   └── api-coverage.py      # เทียบ API.md กับ controller แล้วเขียน docs/API-COVERAGE.md (--check เพื่อตรวจอย่างเดียว)
 ├── .github/workflows/ci.yml
 └── src/

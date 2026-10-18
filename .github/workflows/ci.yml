@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install pyyaml
-      - run: python .claude/skills/access-control-project-bootstrapper/scripts/check_structure.py --repo . --side backend
+      - run: python tools/check_structure.py --repo . --side backend
 
       # 2. Unit, ArchUnit and integration tests (Testcontainers uses the runner's Docker)
       - uses: actions/setup-java@v4
