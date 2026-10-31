@@ -59,6 +59,8 @@ access-control:
   mail:
     from: no-reply@localhost
     base-url: http://localhost:4200
+    # How every email looks: indigo, midnight, paper, minimal, aurora or slate (templates/mail/themes, P-044)
+    theme: ${AC_MAIL_THEME:indigo}
   # Development only; production takes AC_ENCRYPTION_PASSWORD and AC_ENCRYPTION_SALT (tools/gen-keys.sh)
   encryption:
     password: development-only-encryption-password

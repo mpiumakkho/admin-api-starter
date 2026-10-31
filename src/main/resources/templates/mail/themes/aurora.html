@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<!--/* aurora (P-044): bright. A gradient banner in the colours of the tone carries an emoji, the label and the heading in
+       white; a round button in the same gradient, soft lilac around. Clients without gradients show the banner's first
+       colour, which carries white text on its own. Parameters: see indigo.html. */-->
+<html xmlns:th="http://www.thymeleaf.org" th:fragment="email(tone, lines, action, link, note, footer)" lang="en"
+      th:lang="${#locale.language}"
+      th:with="from=${tone == 'security' ? '#e11d48' : tone == 'warning' ? '#c2410c' : tone == 'action' ? '#0f766e' : tone == 'key' ? '#7c3aed' : tone == 'info' ? '#2563eb' : '#4f46e5'},
+               to=${tone == 'security' ? '#c2410c' : tone == 'warning' ? '#be123c' : tone == 'action' ? '#4f46e5' : tone == 'key' ? '#0e7490' : tone == 'info' ? '#7c3aed' : '#a21caf'},
+               emoji=${tone == 'security' ? '🛡️' : tone == 'warning' ? '⚠️' : tone == 'action' ? '📋' : tone == 'key' ? '🔑' : tone == 'info' ? '✨' : '👋'},
+               font='-apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans Thai, Leelawadee UI, Roboto, Helvetica, Arial, sans-serif'">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="supported-color-schemes" content="light">
+    <title th:text="${subject}">Subject</title>
+    <style>
+        @media (max-width: 620px) {
+            .shell { padding: 20px 10px !important; }
+            .pad { padding-left: 24px !important; padding-right: 24px !important; }
+            .heading { font-size: 25px !important; line-height: 35px !important; }
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background: #f4f1fb; -webkit-text-size-adjust: 100%;">
+<div style="display: none; max-height: 0; overflow: hidden; mso-hide: all; font-size: 1px; line-height: 1px; color: #f4f1fb; opacity: 0;"
+     ><th:block th:each="line, at : ${lines}" th:if="${at.first}" th:text="${line}">Preview</th:block>&#8203;&#8199;&#847;&#8203;&#8199;&#847;&#8203;&#8199;&#847;&#8203;&#8199;&#847;&#8203;&#8199;&#847;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f4f1fb" style="background: #f4f1fb;">
+    <tr>
+        <td align="center" class="shell" style="padding: 44px 16px;">
+            <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                   style="max-width: 600px; border-radius: 26px; overflow: hidden; box-shadow: 0 24px 60px rgba(76, 29, 149, 0.16);">
+                <tr>
+                    <td class="pad" style="padding: 30px 40px 40px; background: #4f46e5; color: #ffffff;" th:attr="bgcolor=${from}"
+                        th:styleappend="|background: ${from}; background-image: linear-gradient(135deg, ${from} 0%, ${to} 100%); font-family: ${font};|">
+                        <p style="margin: 0; color: #ffffff; font-size: 14px; font-weight: 700; line-height: 20px;" th:text="${productName}">Admin</p>
+                        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 30px;">
+                            <tr>
+                                <td width="56" height="56" align="center" bgcolor="#ffffff"
+                                    style="width: 56px; height: 56px; border-radius: 28px; background: #ffffff; font-size: 28px; line-height: 56px; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);"
+                                    th:text="${emoji}">👋</td>
+                            </tr>
+                        </table>
+                        <p style="margin: 22px 0 0;">
+                            <span style="display: inline-block; padding: 5px 13px; border-radius: 999px; background: #312e81; background: rgba(15, 10, 40, 0.28); border: 1px solid rgba(255, 255, 255, 0.35); color: #ffffff; font-size: 12px; font-weight: 700; line-height: 18px;"
+                                  th:text="${#messages.msg('mail.tone.' + tone)}">Invitation</span>
+                        </p>
+                        <h1 class="heading" style="margin: 14px 0 0; color: #ffffff; font-size: 30px; font-weight: 800; line-height: 40px;"
+                            th:styleappend="|font-family: ${font};|" th:text="${subject}">Subject</h1>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="pad" bgcolor="#ffffff" style="padding: 36px 40px 38px; background: #ffffff; color: #3f3a56; font-size: 16px; line-height: 27px;"
+                        th:styleappend="|font-family: ${font};|">
+                        <p style="margin: 0; color: #1e1a33; font-weight: 600;" th:text="#{mail.greeting(${productName}, ${firstName})}">Hi,</p>
+                        <p style="margin: 12px 0 0;" th:each="line : ${lines}" th:text="${line}">What happened.</p>
+                        <table th:if="${action != null}" role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 30px;">
+                            <tr>
+                                <td style="border-radius: 999px; background: #4f46e5;" th:attr="bgcolor=${from}"
+                                    th:styleappend="|background: ${from}; background-image: linear-gradient(90deg, ${from} 0%, ${to} 100%); box-shadow: 0 10px 24px ${from}4d;|">
+                                    <a th:href="${link}" target="_blank"
+                                       style="display: inline-block; padding: 15px 32px; border-radius: 999px; color: #ffffff; font-size: 15px; font-weight: 700; line-height: 20px; text-decoration: none;"
+                                       th:styleappend="|font-family: ${font};|" th:text="${action}">Open</a>
+                                </td>
+                            </tr>
+                        </table>
+                        <table th:if="${note != null}" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 26px;">
+                            <tr>
+                                <td bgcolor="#f6f3ff" style="padding: 13px 18px; background: #f6f3ff; border-radius: 16px; color: #4c4566; font-size: 14px; line-height: 22px;"
+                                    th:styleappend="|font-family: ${font};|">&#9203;&nbsp;&nbsp;<span th:text="${note}">The link works once.</span></td>
+                            </tr>
+                        </table>
+                        <p th:if="${link != null}" style="margin: 24px 0 0; color: #6b6585; font-size: 13px; line-height: 21px;">
+                            <span th:text="#{mail.link.fallback}">If the button doesn't work:</span><br>
+                            <a th:href="${link}" target="_blank" style="word-break: break-all;"
+                               th:styleappend="|color: ${from};|" th:text="${link}">https://</a>
+                        </p>
+                        <p style="margin: 30px 0 0; padding-top: 20px; border-top: 1px dashed #e4ddf5; color: #6b6585; font-size: 13px; line-height: 21px;"
+                           th:text="${footer}">Why you get this email.</p>
+                    </td>
+                </tr>
+            </table>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px;">
+                <tr>
+                    <td align="center" style="padding: 24px 16px 0; color: #625c7d; font-size: 12px; line-height: 19px;"
+                        th:styleappend="|font-family: ${font};|" th:text="#{mail.automated(${productName})}">Sent automatically.</td>
+                </tr>
+            </table>
+            <!--[if mso]></td></tr></table><![endif]-->
+        </td>
+    </tr>
+</table>
+</body>
+</html>

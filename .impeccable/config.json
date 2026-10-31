@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "undersized-ui-text",
+        "value": "*",
+        "files": [
+          "src/main/resources/templates/mail/themes/*.html"
+        ],
+        "createdAt": "2026-10-29T17:42:05.399Z",
+        "reason": "Claude: the only 1px text is the hidden email preheader (display:none, inbox preview text), not visible UI"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "src/main/resources/templates/mail/themes/paper.html"
+        ],
+        "createdAt": "2026-10-29T17:44:11.129Z",
+        "reason": "Claude: the paper theme is by design a letter on cream paper; the other themes stay unexempted"
+      }
+    ]
+  }
+}

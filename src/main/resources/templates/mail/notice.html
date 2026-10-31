@@ -1,12 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en" th:lang="${#locale.language}">
-<head>
-    <meta charset="UTF-8">
-    <title th:text="${subject}">Your account</title>
-</head>
-<body style="font-family: system-ui, sans-serif; color: #1f2937; line-height: 1.5;">
-<p th:text="#{mail.greeting(${productName}, ${firstName})}">Hi,</p>
-<p th:each="line : ${lines}" th:text="${line}">What happened.</p>
-<p style="color: #6b7280; font-size: 14px;" th:text="${footer}">Why you get this email.</p>
-</body>
+<!--/* A notice about someone's account: MailNotificationService.sendNotice gives the tone, the paragraphs, the footer
+       and, for a kind with a .button, the button. The theme in access-control.mail.theme lays it out (P-044) */-->
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{mail/themes/__${theme}__ :: email(tone=${tone},
+        lines=${lines}, action=${action}, link=${link}, note=${null}, footer=${footer})}">
 </html>

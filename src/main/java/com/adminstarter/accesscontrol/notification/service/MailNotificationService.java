@@ -1,6 +1,7 @@
 package com.adminstarter.accesscontrol.notification.service;
 
 import com.adminstarter.accesscontrol.AccessControlProperties;
+import com.adminstarter.accesscontrol.AccessControlProperties.Mail.Theme;
 import jakarta.mail.MessagingException;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -23,8 +24,8 @@ import org.thymeleaf.context.Context;
 
 /**
  * Sends the emails over SMTP (spring.mail.*; Mailpit in development) from the Thymeleaf templates in templates/mail and
- * the messages in i18n/mail*.properties, in the reader's language (P-029). Dates and times are in the mail time zone,
- * with the Buddhist year in Thai. A failure is logged, not thrown: the change that asked for the email has already
+ * the messages in i18n/mail*.properties, in the reader's language (P-029), laid out by the theme in
+ * access-control.mail.theme (P-044). Dates and times are in the mail time zone, with the Buddhist year in Thai. A failure is logged, not thrown: the change that asked for the email has already
  * committed, and the person can be sent the link again.
  */
 @Service
@@ -38,21 +39,24 @@ public class MailNotificationService implements NotificationService {
     private final String from;
     private final String productName;
     private final ZoneId zone;
+    private final String theme;
 
     @Autowired
     public MailNotificationService(JavaMailSender mail, ITemplateEngine templates, MessageSource messages,
             AccessControlProperties properties) {
-        this(mail, templates, messages, properties.mail().from(), properties.productName(), ZoneId.of(properties.timeZone()));
+        this(mail, templates, messages, properties.mail().from(), properties.productName(), ZoneId.of(properties.timeZone()),
+                properties.mail().theme());
     }
 
     MailNotificationService(JavaMailSender mail, ITemplateEngine templates, MessageSource messages, String from,
-            String productName, ZoneId zone) {
+            String productName, ZoneId zone, Theme theme) {
         this.mail = mail;
         this.templates = templates;
         this.messages = messages;
         this.from = from;
         this.productName = productName;
         this.zone = zone;
+        this.theme = theme.template();
     }
 
     @Async
@@ -72,10 +76,29 @@ public class MailNotificationService implements NotificationService {
     public void sendNotice(Recipient to, String kind, List<Object> values) {
         var locale = to.locale();
         var context = context(to, text(locale, "mail." + kind + ".subject", values));
+        context.setVariable("tone", tone(kind));
         context.setVariable("lines", List.of(text(locale, "mail." + kind + ".body", values).split("\n")));
         var footer = messages.getMessage("mail." + kind + ".footer", new Object[] {productName}, "", locale);
         context.setVariable("footer", footer == null || footer.isEmpty() ? text(locale, "mail.notice.footer", List.of()) : footer);
+        var button = messages.getMessage("mail." + kind + ".button", null, "", locale);
+        if (button != null && !button.isEmpty()) {
+            context.setVariable("action", button);
+            context.setVariable("link", text(locale, "mail." + kind + ".link", values));
+        }
         send(to.email(), "mail/notice", context);
+    }
+
+    /**
+     * What kind of news a notice is, which gives it its colour and label (mail.tone.*) in every theme: a change to how
+     * someone signs in, a change to their account, something to do, or news about their access
+     */
+    static String tone(String kind) {
+        return switch (kind) {
+            case "new-device", "email-changed", "password-changed" -> "security";
+            case "inactive-suspended" -> "warning";
+            case "access-review" -> "action";
+            default -> "info";
+        };
     }
 
     /** A message in this language: the product's name as {0}, then the values, each written in the language too */
@@ -113,6 +136,7 @@ public class MailNotificationService implements NotificationService {
         context.setVariable("firstName", to.firstName());
         context.setVariable("productName", productName);
         context.setVariable("subject", subject);
+        context.setVariable("theme", theme);
         return context;
     }
 

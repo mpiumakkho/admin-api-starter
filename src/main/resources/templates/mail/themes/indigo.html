@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<!--/* indigo (P-044), the default: the dashboard's own look. A white card on a soft grey page, the product's mark above
+       it, a stripe and a label in the colour of the tone, an indigo-family button. Every theme takes the same
+       parameters: tone (welcome, key, security, warning, action, info), lines (one or more paragraphs), action and link
+       (the button, or null), note (a line under the button, or null) and footer; and reads subject, firstName and
+       productName from the context. Email clients keep only inline styles and tables, so the layout is tables. */-->
+<html xmlns:th="http://www.thymeleaf.org" th:fragment="email(tone, lines, action, link, note, footer)" lang="en"
+      th:lang="${#locale.language}"
+      th:with="accent=${tone == 'security' ? '#dc2626' : tone == 'warning' ? '#b45309' : tone == 'action' ? '#0f766e' : tone == 'key' ? '#6d28d9' : tone == 'info' ? '#1d4ed8' : '#4f46e5'},
+               tint=${tone == 'security' ? '#fdecec' : tone == 'warning' ? '#fdf3e1' : tone == 'action' ? '#e2f4f1' : tone == 'key' ? '#f1ebff' : tone == 'info' ? '#e7effe' : '#eef0ff'},
+               font='-apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans Thai, Leelawadee UI, Roboto, Helvetica, Arial, sans-serif'">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="supported-color-schemes" content="light">
+    <title th:text="${subject}">Subject</title>
+    <style>
+        @media (max-width: 620px) {
+            .shell { padding: 24px 12px !important; }
+            .card { padding: 32px 24px !important; }
+            .heading { font-size: 23px !important; line-height: 31px !important; }
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background: #f4f5fb; -webkit-text-size-adjust: 100%;">
+<div style="display: none; max-height: 0; overflow: hidden; mso-hide: all; font-size: 1px; line-height: 1px; color: #f4f5fb; opacity: 0;"
+     ><th:block th:each="line, at : ${lines}" th:if="${at.first}" th:text="${line}">Preview</th:block>&#8203;&#8199;&#847;&#8203;&#8199;&#847;&#8203;&#8199;&#847;&#8203;&#8199;&#847;&#8203;&#8199;&#847;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #f4f5fb;">
+    <tr>
+        <td align="center" class="shell" style="padding: 44px 16px;">
+            <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px;">
+                <tr>
+                    <td style="padding: 0 4px 20px;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td width="34" height="34" align="center" bgcolor="#4f46e5"
+                                    style="width: 34px; height: 34px; border-radius: 10px; background: #4f46e5; color: #ffffff; font-size: 16px; font-weight: 700; line-height: 34px;"
+                                    th:styleappend="|font-family: ${font};|"
+                                    th:text="${#strings.toUpperCase(#strings.substring(productName, 0, 1))}">A</td>
+                                <td style="padding-left: 11px; color: #1f2335; font-size: 16px; font-weight: 700; line-height: 20px;"
+                                    th:styleappend="|font-family: ${font};|" th:text="${productName}">Admin</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td bgcolor="#ffffff" style="background: #ffffff; border: 1px solid #e4e7f1; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px rgba(16, 24, 40, 0.07);">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td height="4" style="height: 4px; font-size: 0; line-height: 0;" th:attr="bgcolor=${accent}"
+                                    th:styleappend="|background: ${accent};|">&nbsp;</td>
+                            </tr>
+                            <tr>
+                                <td class="card" style="padding: 40px 44px 36px; color: #374151; font-size: 16px; line-height: 26px;"
+                                    th:styleappend="|font-family: ${font};|">
+                                    <span style="display: inline-block; padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 18px;"
+                                          th:styleappend="|background: ${tint}; color: ${accent};|"
+                                          th:text="${#messages.msg('mail.tone.' + tone)}">Invitation</span>
+                                    <h1 class="heading" style="margin: 16px 0 0; color: #111827; font-size: 26px; font-weight: 700; line-height: 34px;"
+                                        th:styleappend="|font-family: ${font};|" th:text="${subject}">Subject</h1>
+                                    <p style="margin: 24px 0 0;" th:text="#{mail.greeting(${productName}, ${firstName})}">Hi,</p>
+                                    <p style="margin: 12px 0 0;" th:each="line : ${lines}" th:text="${line}">What happened.</p>
+                                    <table th:if="${action != null}" role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 30px;">
+                                        <tr>
+                                            <td style="border-radius: 10px;" th:attr="bgcolor=${accent}" th:styleappend="|background: ${accent};|">
+                                                <a th:href="${link}" target="_blank"
+                                                   style="display: inline-block; padding: 14px 28px; border-radius: 10px; color: #ffffff; font-size: 15px; font-weight: 700; line-height: 20px; text-decoration: none;"
+                                                   th:styleappend="|font-family: ${font};|" th:text="${action}">Open</a>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    <table th:if="${note != null}" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 24px;">
+                                        <tr>
+                                            <td bgcolor="#f7f8fc" style="padding: 12px 16px; border: 1px solid #eceef6; border-radius: 10px; color: #4b5563; font-size: 14px; line-height: 21px;"
+                                                th:styleappend="|font-family: ${font};|">
+                                                <span style="font-weight: 700;" th:styleappend="|color: ${accent};|">&#9679;</span>&nbsp;
+                                                <span th:text="${note}">The link works once.</span>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    <p th:if="${link != null}" style="margin: 24px 0 0; color: #6b7280; font-size: 13px; line-height: 20px;">
+                                        <span th:text="#{mail.link.fallback}">If the button doesn't work:</span><br>
+                                        <a th:href="${link}" target="_blank" style="word-break: break-all;"
+                                           th:styleappend="|color: ${accent};|" th:text="${link}">https://</a>
+                                    </p>
+                                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 32px;">
+                                        <tr><td style="border-top: 1px solid #eef0f6; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+                                    </table>
+                                    <p style="margin: 20px 0 0; color: #6b7280; font-size: 13px; line-height: 20px;" th:text="${footer}">Why you get this email.</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td align="center" style="padding: 24px 16px 0; color: #5f6579; font-size: 12px; line-height: 18px;"
+                        th:styleappend="|font-family: ${font};|" th:text="#{mail.automated(${productName})}">Sent automatically.</td>
+                </tr>
+            </table>
+            <!--[if mso]></td></tr></table><![endif]-->
+        </td>
+    </tr>
+</table>
+</body>
+</html>

@@ -127,7 +127,8 @@ Entity ทุกตัวเป็น JPA entity แบบ JavaBean: field เ�
 | `db/migration/access_control/V13__access_reviews.sql` | รอบทบทวนสิทธิ์ ผู้ทบทวนที่ระบุชื่อ และการมอบที่แต่ละรอบครอบคลุม (P-028) |
 | `db/migration/access_control/V14__email_language.sql` | ภาษาของอีเมลของแต่ละคน และภาษาเริ่มต้นในการตั้งค่า (P-029) |
 | `db/migration/app/` | migration ของ business (schema `app`) |
-| `templates/mail/invite.html`, `password-reset.html`, `notice.html` | อีเมล ข้อความมาจาก `#{...}` |
+| `templates/mail/invite.html`, `password-reset.html`, `notice.html` | อีเมลแต่ละแบบมีอะไรบ้าง ข้อความมาจาก `#{...}` แล้วส่งให้ theme จัดหน้า |
+| `templates/mail/themes/` | หน้าตาของอีเมล หนึ่งไฟล์ต่อ theme (`indigo` `midnight` `paper` `minimal` `aurora` `slate`) ทุกไฟล์มี fragment `email(tone, lines, action, link, note, footer)` เหมือนกัน เลือกด้วย `access-control.mail.theme` (P-044) |
 | `i18n/mail.properties`, `i18n/mail_th.properties` | ข้อความของอีเมลภาษาอังกฤษและไทย (P-029); `MailMessagesTest` ตรวจว่ามี key ตรงกัน |
 
 ## `src/test/java/com/adminstarter/`

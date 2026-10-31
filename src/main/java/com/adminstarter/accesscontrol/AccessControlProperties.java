@@ -2,6 +2,7 @@ package com.adminstarter.accesscontrol;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -102,11 +103,35 @@ public record AccessControlProperties(
     /**
      * @param baseUrl where the dashboard is, for the links in emails
      * @param resetLinkTtl how long a password reset link works; invitations follow the settings page
+     * @param theme how every email looks: templates/mail/themes/{theme}.html lays them out (P-044)
      */
     public record Mail(
             @DefaultValue("no-reply@localhost") String from,
             @DefaultValue("http://localhost:4200") String baseUrl,
-            @DefaultValue("1h") Duration resetLinkTtl) {}
+            @DefaultValue("1h") Duration resetLinkTtl,
+            @DefaultValue("indigo") Theme theme) {
+
+        /** The looks an email can have, one template each in templates/mail/themes (P-044) */
+        public enum Theme {
+            /** The dashboard's own: a white card on a soft grey page, indigo button */
+            INDIGO,
+            /** Dark, with the sign-in page's indigo night as its header */
+            MIDNIGHT,
+            /** A letter on cream paper: serif type, ink rules, a signature */
+            PAPER,
+            /** Black on white, a large heading, square corners and nothing else */
+            MINIMAL,
+            /** A bright gradient banner that carries the heading, round buttons */
+            AURORA,
+            /** Formal: a dark slate bar with the product's name, and a footer like a letterhead's */
+            SLATE;
+
+            /** The template's name under templates/mail/themes */
+            public String template() {
+                return name().toLowerCase(Locale.ROOT);
+            }
+        }
+    }
 
     /**
      * The key for secrets kept in the database, such as two-step sign-in secrets: AES-256-GCM with a key derived from
